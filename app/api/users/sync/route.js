@@ -110,12 +110,21 @@ export async function POST(request) {
     })
     
     // Handle specific database connection errors
-    if (error.message.includes('Server selection timeout') || error.code === 'P2010' || error.message.includes('DNS resolution')) {
-      console.error('[SYNC-POST] Database connection error detected')
+    if (error.message.includes('Server selection timeout') || error.code === 'P2010' || error.message.includes('DNS resolution') || error.message.includes('fatal alert')) {
+      console.error('[SYNC-POST] Database connection error detected:', {
+        errorCode: error.code,
+        hasTLS: error.message.includes('fatal alert') || error.message.includes('SSL') || error.message.includes('TLS'),
+        hasTimeout: error.message.includes('timeout'),
+        hasDNS: error.message.includes('DNS'),
+        connectionString: process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 20)}...` : 'NOT SET'
+      })
       return Response.json({ 
         error: 'Database connection failed',
         message: 'Unable to connect to the database. Please check your connection settings.',
-        details: 'Database connection issue - check your MongoDB Atlas connection string and network connectivity',
+        details: error.message.includes('fatal alert') 
+          ? 'SSL/TLS connection issue - check MongoDB Atlas network access rules and connection string'
+          : 'Database connection issue - check your MongoDB Atlas connection string and network connectivity',
+        errorType: error.message.includes('fatal alert') ? 'SSL/TLS Error' : 'Connection Timeout'
       }, { status: 503 })
     }
     
@@ -218,12 +227,21 @@ export async function GET(request) {
     })
     
     // Handle specific database connection errors
-    if (error.message.includes('Server selection timeout') || error.code === 'P2010' || error.message.includes('DNS resolution')) {
-      console.error('[SYNC-GET] Database connection error detected')
+    if (error.message.includes('Server selection timeout') || error.code === 'P2010' || error.message.includes('DNS resolution') || error.message.includes('fatal alert')) {
+      console.error('[SYNC-GET] Database connection error detected:', {
+        errorCode: error.code,
+        hasTLS: error.message.includes('fatal alert') || error.message.includes('SSL') || error.message.includes('TLS'),
+        hasTimeout: error.message.includes('timeout'),
+        hasDNS: error.message.includes('DNS'),
+        connectionString: process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 20)}...` : 'NOT SET'
+      })
       return Response.json({ 
         error: 'Database connection failed',
         message: 'Unable to connect to the database. Please check your connection settings.',
-        details: 'Database connection issue - check your MongoDB Atlas connection string and network connectivity',
+        details: error.message.includes('fatal alert') 
+          ? 'SSL/TLS connection issue - check MongoDB Atlas network access rules and connection string'
+          : 'Database connection issue - check your MongoDB Atlas connection string and network connectivity',
+        errorType: error.message.includes('fatal alert') ? 'SSL/TLS Error' : 'Connection Timeout'
       }, { status: 503 })
     }
     
