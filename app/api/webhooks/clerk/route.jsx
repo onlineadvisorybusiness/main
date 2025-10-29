@@ -92,11 +92,20 @@ export async function POST(req) {
 
         // Check if user exists with retry logic
         console.log(`🔍 DEBUG: Checking if user exists in database for Clerk ID: ${id}`)
+        console.log(`🔍 DEBUG: DATABASE_URL configured: ${!!process.env.DATABASE_URL}`)
+        console.log(`🔍 DEBUG: Environment: ${process.env.NODE_ENV || 'development'}`)
+        
         let existingUser = null
         try {
+          const queryStartTime = Date.now()
+          console.log(`🔍 DEBUG: Executing Prisma query: findUnique user by clerkId`)
+          
           existingUser = await prisma.user.findUnique({
             where: { clerkId: id }
           })
+          
+          const queryTime = Date.now() - queryStartTime
+          console.log(`✅ DEBUG: Query completed in ${queryTime}ms`)
           
           if (existingUser) {
             console.log(`✅ DEBUG: User found in database:`)
@@ -107,15 +116,46 @@ export async function POST(req) {
             console.log(`⚠️ DEBUG: User NOT found in database - will create new user`)
           }
         } catch (dbError) {
-          console.error(`❌ DEBUG: Database query error:`, dbError.message)
+          const errorDetails = {
+            message: dbError.message,
+            code: dbError.code,
+            name: dbError.name,
+            stack: dbError.stack?.substring(0, 500),
+            timestamp: new Date().toISOString(),
+            environment: process.env.NODE_ENV,
+            databaseUrlPresent: !!process.env.DATABASE_URL
+          }
+          
+          console.error(`❌ DEBUG: Database query error - Full details:`, JSON.stringify(errorDetails, null, 2))
+          
           // If database connection fails, wait and retry once
-          if (dbError.message?.includes('timeout') || dbError.message?.includes('InternalError')) {
-            console.log('⚠️ DEBUG: Database connection issue, retrying...')
-            await new Promise(resolve => setTimeout(resolve, 2000))
-            existingUser = await prisma.user.findUnique({
-              where: { clerkId: id }
+          if (dbError.message?.includes('timeout') || dbError.message?.includes('InternalError') || dbError.message?.includes('fatal alert')) {
+            console.log('⚠️ DEBUG: Database connection issue detected, retrying in 2 seconds...')
+            console.log('⚠️ DEBUG: Error type:', {
+              hasTimeout: dbError.message?.includes('timeout'),
+              hasInternalError: dbError.message?.includes('InternalError'),
+              hasFatalAlert: dbError.message?.includes('fatal alert'),
+              fullMessage: dbError.message
             })
-            console.log(`🔍 DEBUG: Retry result - User exists: ${existingUser ? 'YES' : 'NO'}`)
+            
+            await new Promise(resolve => setTimeout(resolve, 2000))
+            
+            try {
+              console.log('🔍 DEBUG: Retrying database query...')
+              const retryStartTime = Date.now()
+              existingUser = await prisma.user.findUnique({
+                where: { clerkId: id }
+              })
+              const retryTime = Date.now() - retryStartTime
+              console.log(`✅ DEBUG: Retry query completed in ${retryTime}ms`)
+              console.log(`🔍 DEBUG: Retry result - User exists: ${existingUser ? 'YES' : 'NO'}`)
+            } catch (retryError) {
+              console.error(`❌ DEBUG: Retry query also failed:`, {
+                message: retryError.message,
+                timestamp: new Date().toISOString()
+              })
+              throw retryError
+            }
           } else {
             throw dbError
           }
