@@ -1,0 +1,280 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  clerkId       String   @unique
+  email         String   @unique
+  firstName     String?
+  lastName      String?
+  username      String?  @unique
+  avatar        String?
+  accountStatus String   @default("learner") // learner, expert
+  linkedinUrl   String?
+  instagramUrl  String?
+  facebookUrl   String?
+  twitterUrl    String?
+  youtubeUrl    String?
+  websiteUrl    String?
+  
+  // Profile fields
+  aboutMe       String?  // Detailed description about the user
+  position      String?  // Professional position/title
+  company       String?  // Company name
+  bio           String?  // Short professional bio
+  reviewsData   Json?    // Backup storage for reviews (JSON array)
+  
+  // Status fields
+  isVerified    String?  @default("false") // Verification status
+  topAdvisor    String?  @default("false") // Top advisor status
+  
+  // Google Calendar integration
+  googleCalendarTokens    String? // JSON string of Google Calendar tokens
+  googleCalendarConnected Boolean @default(false) // Whether Google Calendar is connected
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  meetings      Meeting[]
+  sessions      Session[]
+  reviews       Review[]   // User's reviews/testimonials
+  availabilities Availability[] // Expert's availability slots
+  learnerBookings Booking[] @relation("LearnerBookings") // User's bookings (as learner)
+  expertBookings Booking[] @relation("ExpertBookings") // Expert's bookings (as expert)
+  
+  // Chat relations
+  conversations1 Conversation[] @relation("ConversationParticipant1") // Conversations where user is participant1
+  conversations2 Conversation[] @relation("ConversationParticipant2") // Conversations where user is participant2
+  messages       Message[] // Messages sent by user
+  presence       UserPresence? // User's online presence
+  messageReactions MessageReaction[] // User's message reactions
+  starredMessages StarredMessage[] // User's starred messages
+
+  @@map("users")
+}
+
+model Meeting {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime
+  zoomId      String?
+  zoomUrl     String?
+  status      String   @default("scheduled") // scheduled, completed, cancelled
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  userId      String @db.ObjectId
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("meetings")
+}
+
+
+model Session {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  eventName     String
+  type          String   // "one-on-one" or "group"
+  platform      String   // "google-meet" or "zoom"
+  categories    String[] // Array of categories like ["business", "career", "technology", "finance"]
+  prices        Json     // Object with 15, 30, 60 minute prices
+  currency      String   // Currency code like "USD", "EUR", etc.
+  advicePoints  String[] // Array of 6 advice points
+  status        String   @default("draft") // "draft", "published", "active", "archived"
+  meetingLink   String?  // Generated meeting link
+  meetingId     String?  // Platform-specific meeting ID
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  expertId      String @db.ObjectId
+  expert        User   @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  availabilities Availability[] // Session-specific availability slots
+  bookings      Booking[] // Bookings for this session
+
+  @@map("sessions")
+}
+
+model Review {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  reviewerName  String   // Name of the person giving the review
+  reviewerAvatar String? // Avatar URL of the reviewer
+  position      String?  // Reviewer's position
+  company       String?  // Reviewer's company
+  message       String   // Review message/content
+  stars         Int      @default(5) // Star rating (1-5)
+  source        String   @default("direct") // Review source (direct, linkedin, google, etc.)
+  feedbackDate  DateTime @default(now()) // When the feedback was given
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  userId        String @db.ObjectId
+  user          User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+}
+
+model Availability {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  expertId      String   @db.ObjectId
+  sessionId     String?  @db.ObjectId // Optional: specific session this availability is for
+  dayOfWeek     Int      // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  startTime     String   // Time in HH:MM format (24-hour)
+  endTime       String   // Time in HH:MM format (24-hour)
+  isActive      Boolean  @default(true) // Whether this slot is available
+  timezone      String   @default("UTC") // Expert's timezone
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  expert        User     @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  session       Session? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("availabilities")
+}
+
+model Booking {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  clerkId         String   // Clerk user ID
+  fullName        String   // User's full name
+  email           String   // User's email
+  date            DateTime // Booking date
+  startTime       String   // Start time in HH:MM format
+  endTime         String   // End time in HH:MM format
+  sessionPlatform String   // Session platform (zoom, google_meet)
+  expert          String   // Expert's name
+  currency        String   // Currency code (USD, EUR, etc.)
+  amount          Float    // Payment amount
+  paymentId       String?  // Payment processor ID (Stripe, PayPal, etc.)
+  orderId         String?  // Order/transaction ID
+  accountType     String   // User's account type (learner, expert)
+  meetingLink     String?  // Generated meeting link
+  status          String   @default("pending") // pending, confirmed, completed, cancelled
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  learnerId       String @db.ObjectId
+  learner         User   @relation("LearnerBookings", fields: [learnerId], references: [id], onDelete: Cascade)
+  expertId        String @db.ObjectId
+  expertUser      User   @relation("ExpertBookings", fields: [expertId], references: [id], onDelete: Cascade)
+  sessionId       String @db.ObjectId
+  session         Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("bookings")
+}
+
+model Conversation {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  participant1Id  String   @db.ObjectId // First participant (expert or learner)
+  participant2Id  String   @db.ObjectId // Second participant (expert or learner)
+  lastMessageAt   DateTime @default(now()) // Timestamp of last message
+  lastMessage     String?  // Preview of last message
+  isActive        Boolean  @default(true) // Whether conversation is active
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  participant1    User     @relation("ConversationParticipant1", fields: [participant1Id], references: [id], onDelete: Cascade)
+  participant2    User     @relation("ConversationParticipant2", fields: [participant2Id], references: [id], onDelete: Cascade)
+  messages        Message[]
+  starredMessages StarredMessage[]
+
+  @@unique([participant1Id, participant2Id])
+  @@map("conversations")
+}
+
+model Message {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId  String   @db.ObjectId
+  senderId        String   @db.ObjectId
+  content         String?  // Text content (null for media messages)
+  messageType     String   @default("text") // text, audio, image, file, system
+  mediaUrl        String?  // URL for media files (audio, images, documents)
+  mediaFileName   String?  // Original filename for media
+  mediaSize       Int?     // File size in bytes
+  audioDuration   Float?   // Duration in seconds for audio messages
+  isEdited        Boolean  @default(false)
+  editedAt        DateTime?
+  isDeleted       Boolean  @default(false)
+  deletedAt       DateTime?
+  isRead          Boolean  @default(false)
+  readAt          DateTime?
+  // Threading support
+  parentMessageId String?  @db.ObjectId // For threaded replies
+  threadCount     Int      @default(0) // Number of replies in this thread
+  // WhatsApp-style reply support
+  replyToMessageId String? @db.ObjectId // For WhatsApp-style replies
+  // Pinned and starred message support
+  isPinned        Boolean  @default(false) // Whether message is pinned
+  pinnedAt        DateTime? // When message was pinned
+  pinnedBy        String?  @db.ObjectId // Who pinned the message
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender          User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  reactions       MessageReaction[]
+  starredBy       StarredMessage[]
+  // Threading relations
+  parentMessage   Message?     @relation("MessageThread", fields: [parentMessageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies         Message[]    @relation("MessageThread")
+  // WhatsApp-style reply relations
+  replyToMessage  Message?     @relation("MessageReply", fields: [replyToMessageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  messageReplies  Message[]    @relation("MessageReply")
+
+  @@map("messages")
+}
+
+model MessageReaction {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  messageId       String   @db.ObjectId
+  userId          String   @db.ObjectId
+  emoji           String   // The emoji reaction (👍, ❤️, 🔥, etc.)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  message         Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji]) // Prevent duplicate reactions
+  @@map("message_reactions")
+}
+
+model StarredMessage {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  messageId       String   @db.ObjectId
+  userId          String   @db.ObjectId
+  conversationId  String   @db.ObjectId
+  createdAt       DateTime @default(now())
+
+  message         Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId]) // Prevent duplicate stars
+  @@map("starred_messages")
+}
+
+model UserPresence {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String   @unique @db.ObjectId
+  isOnline        Boolean  @default(false)
+  lastSeenAt      DateTime @default(now())
+  status          String   @default("available") // available, busy, away, invisible
+  typingIn        String?  @db.ObjectId // Conversation ID where user is typing
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_presence")
+}
