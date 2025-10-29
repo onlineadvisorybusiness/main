@@ -118,13 +118,26 @@ export async function POST(request) {
         hasDNS: error.message.includes('DNS'),
         connectionString: process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 20)}...` : 'NOT SET'
       })
+      
+      const isTLSError = error.message.includes('fatal alert');
+      console.error('[SYNC-POST] TLS Error troubleshooting:', {
+        likelyCause: 'MongoDB Atlas Network Access blocking connections',
+        action: 'Check MongoDB Atlas → Network Access → Add IP Address: Allow 0.0.0.0/0 for testing'
+      });
+      
       return Response.json({ 
         error: 'Database connection failed',
         message: 'Unable to connect to the database. Please check your connection settings.',
-        details: error.message.includes('fatal alert') 
-          ? 'SSL/TLS connection issue - check MongoDB Atlas network access rules and connection string'
+        details: isTLSError 
+          ? 'SSL/TLS handshake failed - MongoDB Atlas is likely blocking the connection. Check Network Access settings.'
           : 'Database connection issue - check your MongoDB Atlas connection string and network connectivity',
-        errorType: error.message.includes('fatal alert') ? 'SSL/TLS Error' : 'Connection Timeout'
+        errorType: isTLSError ? 'SSL/TLS Error' : 'Connection Timeout',
+        troubleshooting: isTLSError ? [
+          'MongoDB Atlas → Network Access → Add IP Address → Allow 0.0.0.0/0 (or whitelist Vercel IP ranges)',
+          'Verify connection string: mongodb+srv://user:pass@cluster.net/database?params',
+          'Check MongoDB Atlas cluster is running and healthy',
+          'Verify database user permissions'
+        ] : []
       }, { status: 503 })
     }
     
@@ -235,13 +248,26 @@ export async function GET(request) {
         hasDNS: error.message.includes('DNS'),
         connectionString: process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 20)}...` : 'NOT SET'
       })
+      
+      const isTLSError = error.message.includes('fatal alert');
+      console.error('[SYNC-GET] TLS Error troubleshooting:', {
+        likelyCause: 'MongoDB Atlas Network Access blocking connections',
+        action: 'Check MongoDB Atlas → Network Access → Add IP Address: Allow 0.0.0.0/0 for testing'
+      });
+      
       return Response.json({ 
         error: 'Database connection failed',
         message: 'Unable to connect to the database. Please check your connection settings.',
-        details: error.message.includes('fatal alert') 
-          ? 'SSL/TLS connection issue - check MongoDB Atlas network access rules and connection string'
+        details: isTLSError 
+          ? 'SSL/TLS handshake failed - MongoDB Atlas is likely blocking the connection. Check Network Access settings.'
           : 'Database connection issue - check your MongoDB Atlas connection string and network connectivity',
-        errorType: error.message.includes('fatal alert') ? 'SSL/TLS Error' : 'Connection Timeout'
+        errorType: isTLSError ? 'SSL/TLS Error' : 'Connection Timeout',
+        troubleshooting: isTLSError ? [
+          'MongoDB Atlas → Network Access → Add IP Address → Allow 0.0.0.0/0 (or whitelist Vercel IP ranges)',
+          'Verify connection string: mongodb+srv://user:pass@cluster.net/database?params',
+          'Check MongoDB Atlas cluster is running and healthy',
+          'Verify database user permissions'
+        ] : []
       }, { status: 503 })
     }
     
