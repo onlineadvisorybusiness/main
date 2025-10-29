@@ -2,8 +2,22 @@ import { NextResponse } from 'next/server'
 import { Webhook } from 'svix'
 import { prisma } from '@/lib/prisma'
 
+// GET endpoint to test if webhook URL is accessible
+export async function GET(req) {
+  return Response.json({ 
+    message: 'Clerk webhook endpoint is accessible',
+    endpoint: '/api/webhooks/clerk',
+    method: 'POST',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV
+  })
+}
+
 export async function POST(req) {
-  console.log(`🔔 DEBUG: Webhook endpoint called at ${new Date().toISOString()}`)
+  const timestamp = new Date().toISOString()
+  console.log(`🔔 DEBUG [${timestamp}]: Webhook endpoint called`)
+  console.log(`   - Environment: ${process.env.NODE_ENV}`)
+  console.log(`   - URL: ${req.url}`)
   
   try {
     const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET
@@ -220,22 +234,25 @@ export async function POST(req) {
             }
           }
         }
-      } catch (error) {
-        console.error('❌ Error syncing user to database:', {
-          error: error.message,
-          stack: error.stack,
-          userId: id,
-          eventType
-        })
-        // Return 200 to prevent Clerk from retrying on data errors, but log for monitoring
-        return new Response(JSON.stringify({ 
-          error: 'Error syncing user', 
-          message: error.message 
-        }), { 
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        })
-      }
+    } catch (error) {
+      console.error('❌ DEBUG: Error syncing user to database:', {
+        error: error.message,
+        stack: error.stack,
+        userId: id,
+        eventType,
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV
+      })
+      // Return 200 to prevent Clerk from retrying on data errors, but log for monitoring
+      return new Response(JSON.stringify({ 
+        error: 'Error syncing user', 
+        message: error.message,
+        timestamp: new Date().toISOString()
+      }), { 
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
     }
 
     if (eventType === 'user.deleted') {
@@ -256,7 +273,19 @@ export async function POST(req) {
     console.log(`✅ DEBUG: Webhook processing completed successfully for event: ${eventType}`)
     return new Response('', { status: 200 })
   } catch (error) {
-    console.error('Webhook error:', error)
-    return new Response('Error processing webhook', { status: 500 })
+    console.error('❌ DEBUG: Critical webhook error:', {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV
+    })
+    return new Response(JSON.stringify({ 
+      error: 'Error processing webhook',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
   }
 }
