@@ -20,17 +20,6 @@ export default async function MarketplacePage() {
     if (!process.env.DATABASE_URL) {
       throw new Error('Database not configured')
     }
-
-    
-    const allUsers = await prisma.user.findMany({
-      select: {
-        id: true,
-        username: true,
-        accountStatus: true,
-        firstName: true,
-        lastName: true
-      }
-    })
       
     const expertUsers = await prisma.user.findMany({
       where: { 
@@ -85,8 +74,12 @@ export default async function MarketplacePage() {
                 prices = {}
               }
             }
-            const sessionAvg = Object.values(prices).reduce((s, price) => s + (parseFloat(price) || 0), 0) / Object.keys(prices).length
-            return sum + (sessionAvg || 0)
+            const priceKeys = Object.keys(prices)
+            if (priceKeys.length > 0) {
+              const sessionAvg = Object.values(prices).reduce((s, price) => s + (parseFloat(price) || 0), 0) / priceKeys.length
+              return sum + (sessionAvg || 0)
+            }
+            return sum
           }, 0)
           averagePrice = Math.round(totalPrice / sessions.length)
         }
@@ -216,7 +209,7 @@ export default async function MarketplacePage() {
                   className="w-full pl-16 pr-6 py-5 text-lg border-2 border-gray-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-200 shadow-sm hover:shadow-md"
                 />
                 <Button 
-                  className="absolute right-2 top-2 bottom-2 bg-blue-600 hover:bg-blue-700 text-white px-8 rounded-xl font-semibold transition-colors duration-200 shadow-lg hover:shadow-xl"
+                  className=" text-lg absolute right-2 top-2 bottom-2 h-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-5 rounded-xl font-semibold transition-colors duration-200 shadow-lg hover:shadow-xl"
                 >
                   Search
                 </Button>

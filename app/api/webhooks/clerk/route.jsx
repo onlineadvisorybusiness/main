@@ -3,13 +3,17 @@ import { Webhook } from 'svix'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(req) {
+  console.log(`🔔 DEBUG: Webhook endpoint called at ${new Date().toISOString()}`)
+  
   try {
     const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET
 
     if (!WEBHOOK_SECRET) {
-      console.log('Please add CLERK_WEBHOOK_SECRET to .env.local')
+      console.error('❌ DEBUG: CLERK_WEBHOOK_SECRET is missing from environment variables')
       return new Response('Webhook secret not configured', { status: 400 })
     }
+    
+    console.log(`✅ DEBUG: Webhook secret found (length: ${WEBHOOK_SECRET.length})`)
 
     // Get the headers
     const headerPayload = req.headers
@@ -49,64 +53,207 @@ export async function POST(req) {
 
     // Handle the webhook
     const eventType = evt.type
+    
+    console.log(`🔔 DEBUG: Webhook received - Event Type: ${eventType}`)
 
     if (eventType === 'user.created' || eventType === 'user.updated') {
       const { id, email_addresses, first_name, last_name, username, image_url } = evt.data
 
       try {
-        // Check if user exists
-        const existingUser = await prisma.user.findUnique({
-          where: { clerkId: id }
-        })
+        // Validate required data
+        if (!id) {
+          console.error('❌ DEBUG: Missing user ID in webhook data')
+          return new Response('Missing user ID', { status: 400 })
+        }
+
+        const email = email_addresses?.[0]?.email_address || ''
+        
+        console.log(`📝 DEBUG: Processing ${eventType} for user:`)
+        console.log(`   - Clerk ID: ${id}`)
+        console.log(`   - Email: ${email}`)
+        console.log(`   - Username: ${username || 'no username'}`)
+        console.log(`   - First Name: ${first_name || 'no first name'}`)
+        console.log(`   - Last Name: ${last_name || 'no last name'}`)
+        console.log(`   - Avatar: ${image_url || 'no avatar'}`)
+
+        // Check if user exists with retry logic
+        console.log(`🔍 DEBUG: Checking if user exists in database for Clerk ID: ${id}`)
+        let existingUser = null
+        try {
+          existingUser = await prisma.user.findUnique({
+            where: { clerkId: id }
+          })
+          
+          if (existingUser) {
+            console.log(`✅ DEBUG: User found in database:`)
+            console.log(`   - Database ID: ${existingUser.id}`)
+            console.log(`   - Email: ${existingUser.email}`)
+            console.log(`   - Account Status: ${existingUser.accountStatus}`)
+          } else {
+            console.log(`⚠️ DEBUG: User NOT found in database - will create new user`)
+          }
+        } catch (dbError) {
+          console.error(`❌ DEBUG: Database query error:`, dbError.message)
+          // If database connection fails, wait and retry once
+          if (dbError.message?.includes('timeout') || dbError.message?.includes('InternalError')) {
+            console.log('⚠️ DEBUG: Database connection issue, retrying...')
+            await new Promise(resolve => setTimeout(resolve, 2000))
+            existingUser = await prisma.user.findUnique({
+              where: { clerkId: id }
+            })
+            console.log(`🔍 DEBUG: Retry result - User exists: ${existingUser ? 'YES' : 'NO'}`)
+          } else {
+            throw dbError
+          }
+        }
 
         if (existingUser) {
           // Update existing user
-          await prisma.user.update({
-            where: { clerkId: id },
-            data: {
-              email: email_addresses[0]?.email_address || '',
-              firstName: first_name || null,
-              lastName: last_name || null,
-              username: username || null,
-              avatar: image_url || null,
+          console.log(`🔄 DEBUG: Updating existing user in database`)
+          try {
+            const updatedUser = await prisma.user.update({
+              where: { clerkId: id },
+              data: {
+                email: email || existingUser.email,
+                firstName: first_name || existingUser.firstName,
+                lastName: last_name || existingUser.lastName,
+                username: username || existingUser.username,
+                avatar: image_url || existingUser.avatar,
+              }
+            })
+            console.log('✅ DEBUG: User updated successfully!')
+            console.log(`   - Database ID: ${updatedUser.id}`)
+            console.log(`   - Clerk ID: ${updatedUser.clerkId}`)
+            console.log(`   - Email: ${updatedUser.email}`)
+            console.log(`   - Name: ${updatedUser.firstName} ${updatedUser.lastName}`)
+            
+            const verifyUser = await prisma.user.findUnique({
+              where: { clerkId: id }
+            })
+            console.log(`✅ DEBUG: Verification query - User exists: ${verifyUser ? 'YES' : 'NO'}`)
+            if (verifyUser) {
+              console.log(`   - Verified Email: ${verifyUser.email}`)
+              console.log(`   - Verified Status: ${verifyUser.accountStatus}`)
             }
-          })
-          console.log('User updated:', id)
+          } catch (updateError) {
+            if (updateError.message?.includes('timeout') || updateError.message?.includes('InternalError')) {
+              console.log('⚠️ Retrying user update...')
+              await new Promise(resolve => setTimeout(resolve, 2000))
+              await prisma.user.update({
+                where: { clerkId: id },
+                data: {
+                  email: email || existingUser.email,
+                  firstName: first_name || existingUser.firstName,
+                  lastName: last_name || existingUser.lastName,
+                  username: username || existingUser.username,
+                  avatar: image_url || existingUser.avatar,
+                }
+              })
+              console.log('✅ User updated successfully after retry:', id)
+            } else {
+              throw updateError
+            }
+          }
         } else {
-          await prisma.user.create({
-            data: {
-              clerkId: id,
-              email: email_addresses[0]?.email_address || '',
-              firstName: first_name || null,
-              lastName: last_name || null,
-              username: username || null,
-              avatar: image_url || null,
-              accountStatus: 'learner', 
-              linkedinUrl: null,
+          // Create new user
+          console.log(`➕ DEBUG: Creating new user in database`)
+          console.log(`   - Data to be inserted:`)
+          console.log(`     * Clerk ID: ${id}`)
+          console.log(`     * Email: ${email}`)
+          console.log(`     * First Name: ${first_name || null}`)
+          console.log(`     * Last Name: ${last_name || null}`)
+          console.log(`     * Username: ${username || null}`)
+          console.log(`     * Avatar: ${image_url || null}`)
+          console.log(`     * Account Status: learner`)
+          
+          try {
+            const newUser = await prisma.user.create({
+              data: {
+                clerkId: id,
+                email: email,
+                firstName: first_name || null,
+                lastName: last_name || null,
+                username: username || null,
+                avatar: image_url || null,
+                accountStatus: 'learner', 
+                linkedinUrl: null,
+              }
+            })
+            console.log('✅ DEBUG: User created successfully!')
+            console.log(`   - Database ID: ${newUser.id}`)
+            console.log(`   - Clerk ID: ${newUser.clerkId}`)
+            console.log(`   - Email: ${newUser.email}`)
+            console.log(`   - Account Status: ${newUser.accountStatus}`)
+            console.log(`   - Created At: ${newUser.createdAt}`)
+            
+            // Verify user was created by querying again
+            const verifyUser = await prisma.user.findUnique({
+              where: { clerkId: id }
+            })
+            console.log(`✅ DEBUG: Verification query after creation - User exists: ${verifyUser ? 'YES' : 'NO'}`)
+            if (verifyUser) {
+              console.log(`   - Verified Database ID: ${verifyUser.id}`)
+              console.log(`   - Verified Email: ${verifyUser.email}`)
+              console.log(`   - Verified Account Status: ${verifyUser.accountStatus}`)
+            } else {
+              console.error(`❌ DEBUG: CRITICAL - User was created but verification query failed!`)
             }
-          })
-          console.log('User created with learner status:', id)
+          } catch (createError) {
+            if (createError.message?.includes('timeout') || createError.message?.includes('InternalError')) {
+              console.log('⚠️ Retrying user creation...')
+              await new Promise(resolve => setTimeout(resolve, 2000))
+              const newUser = await prisma.user.create({
+                data: {
+                  clerkId: id,
+                  email: email,
+                  firstName: first_name || null,
+                  lastName: last_name || null,
+                  username: username || null,
+                  avatar: image_url || null,
+                  accountStatus: 'learner', 
+                  linkedinUrl: null,
+                }
+              })
+              console.log('✅ User created successfully after retry:', { id, userId: newUser.id, email })
+            } else {
+              throw createError
+            }
+          }
         }
       } catch (error) {
-        console.error('Error syncing user to database:', error)
-        return new Response('Error syncing user', { status: 500 })
+        console.error('❌ Error syncing user to database:', {
+          error: error.message,
+          stack: error.stack,
+          userId: id,
+          eventType
+        })
+        // Return 200 to prevent Clerk from retrying on data errors, but log for monitoring
+        return new Response(JSON.stringify({ 
+          error: 'Error syncing user', 
+          message: error.message 
+        }), { 
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
       }
     }
 
     if (eventType === 'user.deleted') {
       const { id } = evt.data
+      console.log(`🗑️ DEBUG: Processing user.deleted event for Clerk ID: ${id}`)
 
       try {
         await prisma.user.delete({
           where: { clerkId: id }
         })
-        console.log('User deleted:', id)
+        console.log(`✅ DEBUG: User deleted successfully: ${id}`)
       } catch (error) {
-        console.error('Error deleting user from database:', error)
+        console.error('❌ DEBUG: Error deleting user from database:', error)
         return new Response('Error deleting user', { status: 500 })
       }
     }
 
+    console.log(`✅ DEBUG: Webhook processing completed successfully for event: ${eventType}`)
     return new Response('', { status: 200 })
   } catch (error) {
     console.error('Webhook error:', error)
