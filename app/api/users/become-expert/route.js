@@ -71,7 +71,6 @@ export async function POST(request) {
       message: 'Successfully upgraded to expert status!' 
     })
   } catch (error) {
-    console.error('Error updating to expert:', error)
     return Response.json({ 
       error: 'Failed to update expert status',
       details: error.message 

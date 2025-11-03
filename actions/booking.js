@@ -326,6 +326,11 @@ export async function createBooking(bookingData) {
       throw new Error('User is not an expert')
     }
 
+    // Prevent self-booking (expert booking for themselves)
+    if (user.id === expert.id) {
+      throw new Error('You cannot book a session with yourself')
+    }
+
     const [year, month, day] = validatedData.date.split('-').map(Number)
     const bookingDate = new Date(year, month - 1, day) // month is 0-indexed
     const dayOfWeek = bookingDate.getDay()
@@ -416,10 +421,19 @@ export async function createBooking(bookingData) {
       meetingLink = zoomMeeting.meetLink
         meetingId = zoomMeeting.meetingId
         meetingPassword = zoomMeeting.password
-    } else if (session.platform === 'google_meet') {
+    } else if (session.platform === 'google-meet') {
       meetingLink = generateGoogleMeetLink()
     } else {
       throw new Error(`Unsupported meeting platform: ${session.platform}`)
+    }
+
+    // Validate IDs before creating booking
+    if (!user.id || !expert.id) {
+      throw new Error('Invalid user or expert ID')
+    }
+    
+    if (user.id === expert.id) {
+      throw new Error('Cannot create booking: learner and expert cannot be the same user')
     }
 
     const booking = await prisma.booking.create({
@@ -437,12 +451,12 @@ export async function createBooking(bookingData) {
         accountType: user.accountStatus,
         meetingLink: meetingLink,
         status: 'confirmed',
-        learnerId: user.id,
-        expertId: expert.id,
+        learnerId: user.id,  // Ensure this is the learner (person making the booking)
+        expertId: expert.id,  // Ensure this is the expert (session owner)
         sessionId: session.id
       }
     })
-
+    
     try {
       const [year, month, day] = validatedData.date.split('-').map(Number)
       const [startHour, startMin] = validatedData.startTime.split(':').map(Number)
@@ -463,7 +477,7 @@ export async function createBooking(bookingData) {
           { email: user.email, displayName: `${user.firstName} ${user.lastName}` },
           { email: expert.email, displayName: `${expert.firstName} ${expert.lastName}` }
         ],
-        conferenceData: session.platform === 'google_meet' ? {
+        conferenceData: session.platform === 'google-meet' ? {
           createRequest: {
             requestId: `booking-${booking.id}`,
             conferenceSolutionKey: { type: 'hangoutsMeet' }
@@ -617,7 +631,9 @@ export async function getLearnerBookings(userId) {
       throw new Error('User not found')
     }
 
-    const bookings = await prisma.booking.findMany({
+    // Fetch all bookings where the user is the learner (by learnerId)
+    // Also check bookings by clerkId as a fallback (in case learnerId was incorrectly set)
+    const bookingsByLearnerId = await prisma.booking.findMany({
       where: { learnerId: user.id },
       include: {
         session: true,
@@ -633,9 +649,130 @@ export async function getLearnerBookings(userId) {
       orderBy: { date: 'desc' }
     })
 
+    // Fallback: Also check bookings by clerkId (in case learnerId was incorrectly set)
+    // This catches bookings where the user made the booking (clerkId matches) but learnerId was set incorrectly
+    const bookingsByClerkId = await prisma.booking.findMany({
+      where: { 
+        clerkId: userId,
+        expertId: { not: user.id } // User should not be the expert in their own bookings
+      },
+      include: {
+        session: true,
+        expertUser: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+            avatar: true
+          }
+        }
+      },
+      orderBy: { date: 'desc' },
+      take: 20 // Limit to avoid too many results
+    })
+
+    // Additional fallback: Check by email (in case clerkId was also incorrectly set)
+    const bookingsByEmail = await prisma.booking.findMany({
+      where: {
+        email: user.email,
+        expertId: { not: user.id } // User should not be the expert in their own bookings
+      },
+      include: {
+        session: true,
+        expertUser: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+            avatar: true
+          }
+        }
+      },
+      orderBy: { date: 'desc' },
+      take: 20
+    })
+
+    // Deduplicate bookings by ID (in case same booking appears in multiple queries)
+    const bookingsMap = new Map()
+    const allBookingsArray = bookingsByLearnerId.concat(bookingsByClerkId).concat(bookingsByEmail)
+    allBookingsArray.forEach(booking => {
+      if (!bookingsMap.has(booking.id)) {
+        bookingsMap.set(booking.id, booking)
+      }
+    })
+    const allBookings = Array.from(bookingsMap.values())
+
+    // Also check for any bookings involving this user (in case of data corruption)
+    // This is for debugging to understand what bookings exist
+    const allUserBookings = await prisma.booking.findMany({
+      where: {
+        OR: [
+          { learnerId: user.id },
+          { expertId: user.id },
+          { clerkId: userId }
+        ]
+      },
+      select: {
+        id: true,
+        learnerId: true,
+        expertId: true,
+        status: true,
+        date: true,
+        clerkId: true,
+        fullName: true,
+        email: true
+      },
+      take: 20
+    })
+
+    // Also check all bookings in the database (limited) for debugging
+    const debugBookings = await prisma.booking.findMany({
+      select: {
+        id: true,
+        learnerId: true,
+        expertId: true,
+        status: true,
+        date: true,
+        clerkId: true,
+        fullName: true,
+        email: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10
+    })
+
+    // Filter out corrupted bookings (where learnerId === expertId)
+    // Also ensure bookings are actually for this learner (check clerkId or learnerId)
+    const validBookings = allBookings.filter(booking => {
+      // Reject if it's a self-booking (corrupted)
+      if (String(booking.learnerId) === String(booking.expertId)) {
+        return false
+      }
+      
+      // Check if user is the expert - if so, exclude it (should only show in expert bookings)
+      const isExpert = String(booking.expertId) === String(user.id)
+      if (isExpert) {
+        return false
+      }
+      
+      // Include if:
+      // 1. learnerId matches user.id (normal case), OR
+      // 2. clerkId matches userId (user made the booking, even if learnerId was set incorrectly), OR
+      // 3. email matches user.email (additional fallback for data corruption)
+      const isLearnerByLearnerId = String(booking.learnerId) === String(user.id)
+      const isLearnerByClerkId = booking.clerkId === userId
+      const isLearnerByEmail = booking.email === user.email
+      
+      return isLearnerByLearnerId || isLearnerByClerkId || isLearnerByEmail
+    })
+
+    // Log if we found corrupted bookings
+    const corruptedBookings = allBookings.filter(
+      booking => String(booking.learnerId) === String(booking.expertId)
+    )
     return {
       success: true,
-      bookings: bookings
+      bookings: validBookings
     }
   } catch (error) {
     return {
@@ -673,7 +810,7 @@ export async function completePayment(bookingId, paymentData) {
     let meetingId = null
     let meetingPassword = null
 
-    if (booking.sessionPlatform === 'google_meet') {
+    if (booking.sessionPlatform === 'google-meet') {
       meetingLink = generateGoogleMeetLink()
     } else if (booking.sessionPlatform === 'zoom') {
       const startDateTime = new Date(`${booking.date.toISOString().split('T')[0]}T${booking.startTime}:00Z`)

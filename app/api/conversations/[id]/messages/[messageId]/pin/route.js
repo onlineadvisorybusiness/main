@@ -110,14 +110,12 @@ export async function POST(request, { params }) {
     }
 
   } catch (error) {
-    console.error('Error pinning/unpinning message:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })
   }
 }
 
-// GET - Get pinned messages for a conversation
 export async function GET(request, { params }) {
   try {
     const { userId } = await auth()
@@ -128,7 +126,6 @@ export async function GET(request, { params }) {
 
     const { id: conversationId } = params
 
-    // Get user from database
     const user = await prisma.user.findUnique({
       where: { clerkId: userId }
     })
@@ -137,7 +134,6 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Verify user is part of the conversation
     const conversation = await prisma.conversation.findFirst({
       where: {
         id: conversationId,
@@ -152,7 +148,6 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
     }
 
-    // Get pinned messages
     const pinnedMessages = await prisma.message.findMany({
       where: {
         conversationId: conversationId,
@@ -178,7 +173,6 @@ export async function GET(request, { params }) {
     })
 
   } catch (error) {
-    console.error('Error fetching pinned messages:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })

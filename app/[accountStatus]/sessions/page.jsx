@@ -25,7 +25,6 @@ export default async function DashboardPage({ params }) {
   }
 
   if (user.accountStatus !== accountStatus) {
-    console.log(`Access denied: User ${user.id} with role '${user.accountStatus}' attempted to access '${accountStatus}' dashboard`)
     redirect(`/${user.accountStatus}/dashboard`)
   }
 
@@ -56,7 +55,6 @@ export async function generateMetadata({ params }) {
         userFirstName = user.firstName
       }
     } catch (error) {
-      console.error('Error fetching user for metadata:', error)
     }
   }
   

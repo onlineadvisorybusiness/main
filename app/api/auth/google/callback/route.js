@@ -18,19 +18,16 @@ export async function GET(request) {
 
     // Verify state parameter for security
     if (state !== 'google_calendar_connect') {
-      console.error('Invalid state parameter:', state)
       return NextResponse.redirect(new URL('/expert/sessions?error=invalid_state', request.url))
     }
 
     // Handle OAuth error
     if (error) {
-      console.error('Google OAuth error:', error)
       return NextResponse.redirect(new URL('/expert/sessions?error=google_auth_failed', request.url))
     }
 
     // Handle missing code
     if (!code) {
-      console.error('No authorization code received')
       return NextResponse.redirect(new URL('/expert/sessions?error=no_auth_code', request.url))
     }
 
@@ -44,7 +41,6 @@ export async function GET(request) {
       })
 
       if (!user) {
-        console.error('User not found:', userId)
         return NextResponse.redirect(new URL('/expert/sessions?error=user_not_found', request.url))
       }
 
@@ -82,18 +78,15 @@ export async function GET(request) {
         }
       })
 
-      console.log('Google Calendar connected successfully for user:', user.id)
       
       // Redirect back to sessions page with success message
       return NextResponse.redirect(new URL('/expert/sessions?success=google_calendar_connected', request.url))
 
     } catch (tokenError) {
-      console.error('Error exchanging code for tokens:', tokenError)
       return NextResponse.redirect(new URL('/expert/sessions?error=token_exchange_failed', request.url))
     }
 
   } catch (error) {
-    console.error('Google OAuth callback error:', error)
     return NextResponse.redirect(new URL('/expert/sessions?error=callback_failed', request.url))
   }
 }

@@ -120,7 +120,6 @@ export function ProfileCard({ userStatus, onClose }) {
           const userReviews = Array.isArray(dbReviews) && dbReviews.length > 0 ? dbReviews : clerkReviews
           setReviews(Array.isArray(userReviews) ? userReviews : [])
         } else {
-          // Fallback to Clerk data
           const avatarUrl = user.unsafeMetadata?.avatarUrl || user.imageUrl || ''
           
           setProfileData({
@@ -138,8 +137,7 @@ export function ProfileCard({ userStatus, onClose }) {
           setReviews(Array.isArray(userReviews) ? userReviews : [])
         }
       } catch (error) {
-        console.error('Error loading profile data:', error)
-        // Fallback to Clerk data
+
         const avatarUrl = user.unsafeMetadata?.avatarUrl || user.imageUrl || ''
         
         setProfileData({
@@ -219,7 +217,6 @@ export function ProfileCard({ userStatus, onClose }) {
         description: "Your profile picture has been uploaded. Click 'Save Profile' to save changes.",
       })
     } catch (error) {
-      console.error('Error uploading avatar:', error)
       toast({
         title: "Upload Failed",
         description: "Failed to update your profile picture. Please try again.",
@@ -256,7 +253,6 @@ export function ProfileCard({ userStatus, onClose }) {
           
           await user.setProfileImage({ file })
         } catch (avatarError) {
-          console.error('Failed to update Clerk avatar:', avatarError)
         }
       }
       
@@ -273,7 +269,6 @@ export function ProfileCard({ userStatus, onClose }) {
             }
           })
         } catch (metadataError) {
-          console.error('Metadata update failed:', metadataError)
         }
       }
 
@@ -304,11 +299,9 @@ export function ProfileCard({ userStatus, onClose }) {
       })
 
       if (response.ok) {
-        const result = await response.json()
-        console.log('Database updated successfully:', result)
+        const result = await response.json()    // eslint-disable-line no-unused-vars
       } else {
         const error = await response.json()
-        console.error('Database update failed:', error)
       }
 
       setHasUnsavedChanges(false)
@@ -319,7 +312,6 @@ export function ProfileCard({ userStatus, onClose }) {
         description: "Your profile has been updated successfully.",
       })
     } catch (error) {
-      console.error('Error saving profile:', error)
       toast({
         title: "Save Failed",
         description: "Failed to update your profile. Please try again.",
@@ -391,7 +383,6 @@ export function ProfileCard({ userStatus, onClose }) {
         confirmPassword: ''
       })
     } catch (error) {
-      console.error('Error changing password:', error)
       toast({
         title: "Password Change Failed",
         description: error.message || "Failed to change password. Please try again.",

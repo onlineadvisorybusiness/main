@@ -14,6 +14,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { Skeleton } from '@/components/ui/skeleton'
 import { Send, MessageSquare, Users, Clock, Filter, MoreVertical, Search, Info, Paperclip, Smile, Mic, Check, CheckCheck, Image, FileText, X, Download, Eye, Edit, Trash2, Play, Pause, Square, Star, Reply, Forward, Copy, Trash, Pin, PinOff } from 'lucide-react'
 import NextImage from 'next/image'
+import { showInAppNotification, InAppNotificationContainer } from '@/components/ui/in-app-notification'
 
 export default function ChatWithLearner() {
   const { user } = useUser()
@@ -63,6 +64,8 @@ export default function ChatWithLearner() {
   const [showStarredMessages, setShowStarredMessages] = useState(false)
   // Message grouping state
   const [groupedMessages, setGroupedMessages] = useState({})
+  // Client-side only state for test button
+  const [isClient, setIsClient] = useState(false)
   const typingTimeoutRef = useRef(null)
   const messagesEndRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -70,6 +73,7 @@ export default function ChatWithLearner() {
   const mediaRecorderRef = useRef(null)
   const audioRef = useRef(null)
   const recordingIntervalRef = useRef(null)
+  const notifiedMessagesRef = useRef(new Set()) // Track notified message IDs to prevent duplicates
 
   const markAllMessagesAsRead = useCallback(async () => {
     if (selectedLearner?.conversationId && currentUser) {
@@ -115,6 +119,127 @@ export default function ChatWithLearner() {
       fetchCurrentUser()
     }
   }, [user])
+
+  // Set client-side flag to prevent hydration mismatch
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then(() => {})
+      }
+    }
+  }, [])
+
+  // Hybrid notification helper - shows in-app toast when tab is focused, browser notification when not
+  const showHybridNotification = (title, body, icon = null, messageId = null) => {
+    // Check if we've already notified for this message to prevent duplicates
+    if (messageId && notifiedMessagesRef.current.has(messageId)) {
+      return
+    }
+
+    // Mark this message as notified
+    if (messageId) {
+      notifiedMessagesRef.current.add(messageId)
+    }
+
+    const isTabFocused = typeof document !== 'undefined' && document.hasFocus()
+    
+    if (isTabFocused) {
+      // Tab is focused - show in-app toast notification
+      showInAppNotification({
+        title,
+        description: body,
+        avatar: icon,
+        messageId
+      })
+    } else {
+      // Tab is not focused - show browser/OS notification
+      showBrowserNotification(title, body, icon)
+    }
+  }
+
+  // Helper function to show browser notification
+  const showBrowserNotification = (title, body, icon = null) => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      return
+    }
+
+    if (Notification.permission === 'granted') {
+      try {
+        // Use unique tag for each notification so multiple can show
+        const notificationId = `notification-${Date.now()}-${Math.random()}`
+        
+        const iconUrl = icon || '/logo.png'
+        const notificationOptions = {
+          body: body,
+          icon: iconUrl,
+          badge: '/logo.png',
+          tag: notificationId,
+          requireInteraction: false,
+          silent: false,
+          dir: 'ltr',
+          image: iconUrl,
+          timestamp: Date.now(),
+          data: { 
+            url: window.location.href,
+            timestamp: Date.now()
+          }
+        }
+        
+        const notification = new Notification(title, notificationOptions)
+
+        // Store reference to prevent garbage collection
+        if (!window.activeNotifications || !(window.activeNotifications instanceof Map)) {
+          window.activeNotifications = new Map()
+        }
+        window.activeNotifications.set(notificationId, notification)
+
+        setTimeout(() => {
+          if (notification && notification.close) {
+            notification.close()
+          }
+          if (window.activeNotifications) {
+            window.activeNotifications.delete(notificationId)
+          }
+        }, 10000)
+
+        // Handle click - focus window and close notification
+        notification.onclick = (event) => {
+          event.preventDefault()
+          if (notification && notification.close) {
+            notification.close()
+          }
+          if (window.activeNotifications) {
+            window.activeNotifications.delete(notificationId)
+          }
+          window.focus()
+        }
+
+        notification.onerror = (error) => {
+          if (window.activeNotifications) {
+            window.activeNotifications.delete(notificationId)
+          }
+        }
+
+        notification.onclose = () => {
+          if (window.activeNotifications) {
+            window.activeNotifications.delete(notificationId)
+          }
+        }
+      } catch (error) { 
+      }
+    } else if (Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          showBrowserNotification(title, body, icon)
+        }
+      })
+    }
+  }
 
   useEffect(() => {
     const loadLearners = async () => {
@@ -171,7 +296,7 @@ export default function ChatWithLearner() {
               senderName: `${msg.sender.firstName || ''} ${msg.sender.lastName || ''}`.trim() || msg.sender.username,
               content: msg.content,
               timestamp: new Date(msg.createdAt),
-              isExpert: msg.senderId === currentUser?.id, 
+              isExpert: String(msg.senderId) === String(currentUser?.id), // If sender is current user (learner), message goes on right 
               seen: msg.isRead,
               seenTime: msg.readAt ? new Date(msg.readAt) : null,
               type: msg.messageType,
@@ -223,6 +348,13 @@ export default function ChatWithLearner() {
     
     loadMessages()
   }, [selectedLearner, currentUser, markAllMessagesAsRead])
+  
+  // Separate effect to join conversation when messages are loaded or connection changes
+  useEffect(() => {
+    if (selectedLearner?.conversationId && isConnected && socket) {
+      joinConversation(selectedLearner.conversationId)
+    }
+  }, [selectedLearner?.conversationId, isConnected, socket, joinConversation])
 
   useEffect(() => {
     const loadPinnedMessages = async () => {
@@ -267,56 +399,223 @@ export default function ChatWithLearner() {
   }, [selectedLearner?.conversationId])
 
   useEffect(() => {
-    if (!socket || !isConnected) return
+    if (!socket || !isConnected) {
+      return
+    }
 
     const handleNewMessage = (data) => {
-      if (data.conversationId === selectedLearner?.conversationId) {
+      
+      // Normalize conversation IDs to string for comparison
+      const normalizedConversationId = String(data.conversationId)
+      const normalizedSelectedConversationId = String(selectedLearner?.conversationId || '')
+      
+      // Check if this is the current conversation
+      const isCurrentConversation = normalizedConversationId === normalizedSelectedConversationId
+      
+      // Check if message is from another user (not current user)
+      const isFromOtherUser = String(data.message?.senderId) !== String(currentUser?.id)
+      
+      // Get sender name for notifications
+      const senderName = `${data.message?.sender?.firstName || ''} ${data.message?.sender?.lastName || ''}`.trim() || data.message?.sender?.username || 'Someone'
+      
+      // Update the learners list with the new message preview (for all conversations)
+      let learnerInfo = null
+      let conversationName = senderName
+      
+      setLearners(prev => {
+        const updated = prev.map(learner => {
+          const normalizedLearnerConversationId = String(learner.conversationId || '')
+          if (normalizedLearnerConversationId === normalizedConversationId) {
+            learnerInfo = learner
+            conversationName = learner.name || senderName
+            return {
+              ...learner,
+              lastMessagePreview: data.message?.content || (data.message?.messageType === 'image' ? 'Image' : data.message?.messageType === 'document' ? 'Document' : 'Message'),
+              lastMessage: new Date().toLocaleString(),
+              unreadCount: isCurrentConversation ? 0 : (String(data.message?.senderId) === String(currentUser?.id) ? learner.unreadCount : learner.unreadCount + 1)
+            }
+          }
+          return learner
+        })
+        return updated
+      })
+      
+      // Show notifications if message is from another user (only if NOT current conversation)
+      // Current conversation messages are handled in handleMessageNotification
+      if (isFromOtherUser && data.message && !isCurrentConversation) {
+        const messagePreview = data.message.content || 
+          (data.message.messageType === 'image' ? '📷 Image' : 
+           data.message.messageType === 'document' ? '📄 Document' : 
+           data.message.messageType === 'audio' ? '🎤 Audio' : 
+           'New message')
+        
+        setTimeout(() => {
+          showHybridNotification(
+            conversationName,
+            messagePreview, 
+            learnerInfo?.avatar || '/logo.png',
+            data.message?.id
+          )
+        }, 0)
+      }
+      
+      // If this conversation is currently selected, also add the message to the messages array
+      if (isCurrentConversation) {
         const newMessage = {
           id: data.message.id,
           senderId: data.message.senderId,
-          senderName: `${data.message.sender.firstName || ''} ${data.message.sender.lastName || ''}`.trim() || data.message.sender.username,
+          senderName: `${data.message.sender?.firstName || ''} ${data.message.sender?.lastName || ''}`.trim() || data.message.sender?.username || 'Unknown',
           content: data.message.content,
           timestamp: new Date(data.message.createdAt),
-          isExpert: data.message.senderId === currentUser?.id,
-          seen: data.message.isRead,
+          isExpert: String(data.message.senderId) === String(currentUser?.id),
+          seen: data.message.isRead || false,
           seenTime: data.message.readAt ? new Date(data.message.readAt) : null,
-          type: data.message.messageType,
+          type: data.message.messageType || 'text',
           mediaUrl: data.message.mediaUrl,
-          audioDuration: data.message.audioDuration
+          audioDuration: data.message.audioDuration,
+          replyTo: data.message.replyToMessage ? {
+            id: data.message.replyToMessage.id,
+            content: data.message.replyToMessage.content,
+            senderName: `${data.message.replyToMessage.sender?.firstName || ''} ${data.message.replyToMessage.sender?.lastName || ''}`.trim() || data.message.replyToMessage.sender?.username || 'Unknown'
+          } : null
         }
         
         setMessages(prev => {
-          const messageExists = prev.some(msg => msg.id === newMessage.id)
+          // Check if message already exists by ID (convert to string for comparison)
+          const messageExists = prev.some(msg => String(msg.id) === String(newMessage.id))
           if (messageExists) {
-            return prev
+            // Message already exists, but update it if needed (in case it's an optimistic message being replaced)
+            return prev.map(msg => {
+              if (String(msg.id) === String(newMessage.id) || (msg.id?.startsWith('temp-') && String(msg.senderId) === String(newMessage.senderId) && msg.content === newMessage.content)) {
+                // Replace optimistic message with real one or update existing
+                return newMessage
+              }
+              return msg
+            })
           }
           
-          if (newMessage.senderId !== currentUser?.id) {
+          // Remove any optimistic messages from the same sender with similar content
+          const filtered = prev.filter(msg => {
+            if (msg.id?.startsWith('temp-') && String(msg.senderId) === String(newMessage.senderId)) {
+              // Remove optimistic messages if we receive the real one
+              return false
+            }
+            return true
+          })
+          
+          // Mark messages as read if received from other user
+          if (String(newMessage.senderId) !== String(currentUser?.id)) {
             setTimeout(() => {
               markAllMessagesAsRead()
             }, 500)
           }
           
-          return [...prev, newMessage]
+          // Add new message and update grouped messages
+          const updated = [...filtered, newMessage].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+          setGroupedMessages(groupMessagesByDate(updated))
+          
+          // Scroll to bottom when new message arrives
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+          }, 100)
+          
+          return updated
         })
       }
     }
 
     const handleMessageNotification = (data) => {
-      setLearners(prev => prev.map(learner => 
-        learner.conversationId === data.conversationId
-          ? { 
-              ...learner, 
-              lastMessagePreview: data.message.content,
-              lastMessage: new Date().toLocaleString(),
-              unreadCount: selectedLearner?.conversationId === data.conversationId ? 0 : learner.unreadCount + 1
+      // Check if message is from another user (not current user)
+      const isFromOtherUser = String(data.message?.senderId) !== String(currentUser?.id)
+      
+      // Get sender name for notifications
+      const senderName = `${data.message?.sender?.firstName || ''} ${data.message?.sender?.lastName || ''}`.trim() || data.message?.sender?.username || 'Someone'
+      
+      // Update the learners list
+      setLearners(prev => prev.map(learner => {
+        const isCurrentConversation = String(learner.conversationId) === String(data.conversationId)
+        
+        if (isCurrentConversation) {
+          // Show notifications for current conversation messages from other users
+          if (isFromOtherUser && data.message) {
+            const messagePreview = data.message.content || 
+              (data.message.messageType === 'image' ? '📷 Image' : 
+               data.message.messageType === 'document' ? '📄 Document' : 
+               data.message.messageType === 'audio' ? '🎤 Audio' : 
+               'New message')
+            
+            // Show notification for messages in current conversation too
+            setTimeout(() => {
+              showHybridNotification(
+                learner.name || senderName,
+                messagePreview, // Just the message content, don't repeat sender name
+                learner.avatar || '/logo.png',
+                data.message?.id
+              )
+            }, 0)
+          }
+          
+          return { 
+            ...learner, 
+            lastMessagePreview: data.message.content,
+            lastMessage: new Date().toLocaleString(),
+            // Only increment unread count if this conversation is not currently selected
+            unreadCount: String(selectedLearner?.conversationId) === String(data.conversationId) ? 0 : learner.unreadCount + 1
+          }
+        }
+        return learner
+      }))
+      
+      // If this conversation is currently selected, also add the message to the messages array
+      // This handles the case where the message arrives via the user's personal room fallback
+      if (String(selectedLearner?.conversationId) === String(data.conversationId)) {
+        const newMessage = {
+          id: data.message.id,
+          senderId: data.message.senderId,
+          senderName: `${data.message.sender?.firstName || ''} ${data.message.sender?.lastName || ''}`.trim() || data.message.sender?.username || 'Unknown',
+          content: data.message.content,
+          timestamp: new Date(data.message.createdAt),
+          isExpert: String(data.message.senderId) === String(currentUser?.id),
+          seen: data.message.isRead || false,
+          seenTime: data.message.readAt ? new Date(data.message.readAt) : null,
+          type: data.message.messageType || 'text',
+          mediaUrl: data.message.mediaUrl,
+          audioDuration: data.message.audioDuration,
+          replyTo: data.message.replyToMessage ? {
+            id: data.message.replyToMessage.id,
+            content: data.message.replyToMessage.content,
+            senderName: `${data.message.replyToMessage.sender?.firstName || ''} ${data.message.replyToMessage.sender?.lastName || ''}`.trim() || data.message.replyToMessage.sender?.username || 'Unknown'
+          } : null
+        }
+        
+        setMessages(prev => {
+          const messageExists = prev.some(msg => String(msg.id) === String(newMessage.id))
+          if (!messageExists) {
+            const updated = [...prev, newMessage].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+            setGroupedMessages(groupMessagesByDate(updated))
+            
+            // Mark messages as read if received from other user
+            if (String(newMessage.senderId) !== String(currentUser?.id)) {
+              setTimeout(() => {
+                markAllMessagesAsRead()
+              }, 500)
             }
-          : learner
-      ))
+            
+            // Scroll to bottom when new message arrives
+            setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+            }, 100)
+            
+            return updated
+          }
+          return prev
+        })
+      }
     }
 
     const handleMessagesRead = (data) => {
-      if (data.conversationId === selectedLearner?.conversationId) {
+      // Normalize conversation IDs to string for comparison
+      if (String(data.conversationId) === String(selectedLearner?.conversationId)) {
         setMessages(prev => prev.map(msg => 
           data.messageIds.includes(msg.id)
             ? { ...msg, seen: true, seenTime: new Date(data.readAt) }
@@ -326,13 +625,15 @@ export default function ChatWithLearner() {
     }
 
     const handleTypingStart = (data) => {
-      if (data.conversationId === selectedLearner?.conversationId && data.userId !== currentUser?.id) {
+      // Normalize conversation IDs to string for comparison
+      if (String(data.conversationId) === String(selectedLearner?.conversationId) && String(data.userId) !== String(currentUser?.id)) {
         setTypingUsers(prev => new Set([...prev, data.userId]))
       }
     }
 
     const handleTypingStop = (data) => {
-      if (data.conversationId === selectedLearner?.conversationId) {
+      // Normalize conversation IDs to string for comparison
+      if (String(data.conversationId) === String(selectedLearner?.conversationId)) {
         setTypingUsers(prev => {
           const newSet = new Set(prev)
           newSet.delete(data.userId)
@@ -342,7 +643,8 @@ export default function ChatWithLearner() {
     }
 
     const handleMessageReaction = (data) => {
-      if (data.conversationId === selectedLearner?.conversationId) {
+      // Normalize conversation IDs to string for comparison
+      if (String(data.conversationId) === String(selectedLearner?.conversationId)) {
         setMessageReactions(prev => ({
           ...prev,
           [data.messageId]: data.reactions
@@ -368,16 +670,32 @@ export default function ChatWithLearner() {
   }, [socket, isConnected, selectedLearner, currentUser])
 
   useEffect(() => {
-    if (selectedLearner?.conversationId && isConnected) {
+    if (selectedLearner?.conversationId && isConnected && socket) {
+      // Join conversation when selected and socket is connected
       joinConversation(selectedLearner.conversationId)
-    }
-
-    return () => {
-      if (selectedLearner?.conversationId && isConnected) {
-        leaveConversation(selectedLearner.conversationId)
+      
+      // Listen for confirmation that we joined
+      const handleJoinedConversation = (data) => {}
+      socket.on('joined_conversation', handleJoinedConversation)
+      
+      // Also listen for connection events to rejoin if needed
+      const handleReconnect = () => {
+        if (selectedLearner?.conversationId) {
+          joinConversation(selectedLearner.conversationId)
+        }
+      }
+      
+      socket.on('connect', handleReconnect)
+      
+      return () => {
+        socket.off('connect', handleReconnect)
+        socket.off('joined_conversation', handleJoinedConversation)
+        if (selectedLearner?.conversationId && isConnected) {
+          leaveConversation(selectedLearner.conversationId)
+        }
       }
     }
-  }, [selectedLearner?.conversationId, isConnected, joinConversation, leaveConversation])
+  }, [selectedLearner?.conversationId, isConnected, socket, joinConversation, leaveConversation])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -514,38 +832,54 @@ export default function ChatWithLearner() {
             setShowEmojiPicker(false)
             setReplyingTo(null)
             
-            // Send via Socket.io for real-time delivery with the actual message data
-            if (isConnected) {
-              socketSendMessage({
-                conversationId: selectedLearner.conversationId,
-                content: data.message.content,
-                messageType: data.message.messageType,
-                mediaUrl: data.message.mediaUrl,
-                audioDuration: data.message.audioDuration
-              })
-            } else {
-              // Only add to local state if Socket.io is not connected (fallback)
-              const newMessage = {
-                id: data.message.id,
-                senderId: data.message.senderId,
-                senderName: `${data.message.sender.firstName || ''} ${data.message.sender.lastName || ''}`.trim() || data.message.sender.username,
-                content: data.message.content,
-                timestamp: new Date(data.message.createdAt),
-                isExpert: true, 
-                seen: false,
-                type: data.message.messageType,
-                mediaUrl: data.message.mediaUrl
-              }
-              
-              // Prevent duplicate by checking if message already exists
-              setMessages(prev => {
-                const messageExists = prev.some(msg => msg.id === newMessage.id)
-                if (!messageExists) {
-                  return [...prev, newMessage]
-                }
-                return prev
-              })
+            // Always add message to local state immediately after API call
+            const newMessage = {
+              id: data.message.id,
+              senderId: data.message.senderId,
+              senderName: `${data.message.sender.firstName || ''} ${data.message.sender.lastName || ''}`.trim() || data.message.sender.username,
+              content: data.message.content,
+              timestamp: new Date(data.message.createdAt),
+              isExpert: true, // Current user's (learner) messages on the right 
+              seen: false,
+              type: data.message.messageType,
+              mediaUrl: data.message.mediaUrl,
+              audioDuration: data.message.audioDuration,
+              replyTo: data.message.replyToMessage ? {
+                id: data.message.replyToMessage.id,
+                content: data.message.replyToMessage.content,
+                senderName: `${data.message.replyToMessage.sender.firstName || ''} ${data.message.replyToMessage.sender.lastName || ''}`.trim() || data.message.replyToMessage.sender.username
+              } : null
             }
+            
+            // Add message to local state immediately
+            setMessages(prev => {
+              const messageExists = prev.some(msg => String(msg.id) === String(newMessage.id))
+              if (!messageExists) {
+                const updated = [...prev, newMessage].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+                setGroupedMessages(groupMessagesByDate(updated))
+                return updated
+              }
+              return prev
+            })
+            
+            setLearners(prev => prev.map(learner => 
+              String(learner.conversationId) === String(selectedLearner.conversationId)
+                ? { 
+                    ...learner, 
+                    lastMessagePreview: messageContent || (messageType === 'image' ? 'Image' : messageType === 'document' ? 'Document' : 'Message'),
+                    lastMessage: new Date().toLocaleString(),
+                    unreadCount: 0 // Since we're viewing this conversation
+                  }
+                : learner
+            ))
+            
+            // Scroll to bottom when new message is added
+            setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+            }, 100)
+            
+            // Note: The API route already emits the message via socket for real-time delivery
+            // No need to send again via socket to avoid duplicates
           } else {  
           }
         }
@@ -905,7 +1239,7 @@ export default function ChatWithLearner() {
         content: '',
         audioBlob: audioBlob,
         timestamp: new Date(),
-        isExpert: true,
+        isExpert: true, // Current user's (learner) messages on the right
         type: 'audio'
       }
       setMessages([...messages, newMessage])
@@ -2421,10 +2755,12 @@ export default function ChatWithLearner() {
            <AlertDialogFooter>
              <AlertDialogCancel>Close</AlertDialogCancel>
            </AlertDialogFooter>
-         </AlertDialogContent>
-       </AlertDialog>
+        </AlertDialogContent>
+      </AlertDialog>
 
 
-     </div>
-   )
- }
+      <InAppNotificationContainer />
+
+    </div>
+  )
+}

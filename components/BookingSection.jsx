@@ -33,7 +33,6 @@ export function BookingSection({ expert, sessions = [] }) {
       try {
         prices = JSON.parse(prices)
       } catch (e) {
-        console.error('Error parsing prices:', e)
         prices = {}
       }
     }
@@ -67,15 +66,7 @@ export function BookingSection({ expert, sessions = [] }) {
     const dayAvailability = expertAvailability[dayOfWeek] || []
     // Get bookings for the specific date, not day of week
     const dayBookings = existingBookings[selectedDateStr] || []
-    
-    console.log('Generating slots for:', {
-      selectedDate: selectedDateStr,
-      dayOfWeek: dayOfWeek,
-      dayAvailability: dayAvailability,
-      dayBookings: dayBookings,
-      allExistingBookings: existingBookings
-    })
-    
+        
     if (dayAvailability.length === 0) {
       setAvailableSlots([])
       return
@@ -103,11 +94,6 @@ export function BookingSection({ expert, sessions = [] }) {
             const timeOverlap = (slotStart < bookingEnd && slotEnd > bookingStart)
             
             if (timeOverlap) {
-              console.log('Slot conflict detected:', {
-                slotTime: `${formatTime(slotStart)} - ${formatTime(slotEnd)}`,
-                bookingTime: `${formatTime(bookingStart)} - ${formatTime(bookingEnd)}`,
-                slotStart, slotEnd, bookingStart, bookingEnd
-              })
             }
             
             return timeOverlap
@@ -121,7 +107,6 @@ export function BookingSection({ expert, sessions = [] }) {
               duration: duration
             })
           } else {
-            console.log('Skipping booked slot:', formatTime(currentTime))
           }
         }
         currentTime += duration 
@@ -148,13 +133,11 @@ export function BookingSection({ expert, sessions = [] }) {
       setLoadingAvailability(true)
       const response = await fetch(`/api/availability/expert/${expert.username}`)
       if (response.ok) {
-        const data = await response.json()
-        console.log('Fetched expert availability data:', data)
+        const data = await response.json()   // eslint-disable-line no-unused-vars
         setExpertAvailability(data.availabilities || {})
         setExistingBookings(data.existingBookings || {})
       }
     } catch (error) {
-      console.error('Error fetching expert availability:', error)
     } finally {
       setLoadingAvailability(false)
     }
@@ -290,7 +273,6 @@ export function BookingSection({ expert, sessions = [] }) {
         alert(`Booking failed: ${error.error}`)
       }
     } catch (error) {
-      console.error('Error creating booking:', error)
       alert('An error occurred while creating your booking. Please try again.')
     } finally {
       setBooking(false)
@@ -556,7 +538,7 @@ export function BookingSection({ expert, sessions = [] }) {
                           </div>
                           <span className="text-gray-900 text-sm">
                             {currentSession?.platform === 'zoom' ? 'Zoom' : 
-                             currentSession?.platform === 'google_meet' ? 'Google Meet' : 
+                             currentSession?.platform === 'google-meet' ? 'Google Meet' : 
                              'Zoom'}
                           </span>
                         </div>

@@ -51,14 +51,6 @@ export async function POST(request) {
       ).end(buffer)
     })
 
-    // Just return the image URL - don't save to database yet
-    // Database will be updated when user clicks "Save Profile"
-    console.log('Avatar uploaded to Cloudinary:', {
-      userId,
-      avatarUrl: result.secure_url,
-      publicId: result.public_id
-    })
-
     return NextResponse.json({
       success: true,
       imageUrl: result.secure_url,
@@ -66,7 +58,6 @@ export async function POST(request) {
     })
 
   } catch (error) {
-    console.error('Avatar upload error:', error)
     return NextResponse.json(
       { error: 'Failed to upload avatar' },
       { status: 500 }

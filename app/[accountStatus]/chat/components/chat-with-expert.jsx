@@ -14,6 +14,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { Skeleton } from '@/components/ui/skeleton'
 import { Send, MessageSquare, Users, Clock, Filter, MoreVertical, Search, Info, Paperclip, Smile, Mic, Check, CheckCheck, Image, FileText, X, Download, Eye, Edit, Trash2, Play, Pause, Square, Star, Reply, Forward, Copy, Trash, Pin, PinOff } from 'lucide-react'
 import NextImage from 'next/image'
+import { showInAppNotification, InAppNotificationContainer } from '@/components/ui/in-app-notification'
 
 export default function ChatWithExpert() {
   const { user } = useUser()
@@ -65,6 +66,8 @@ export default function ChatWithExpert() {
   const [showStarredMessages, setShowStarredMessages] = useState(false)
   // Message grouping state
   const [groupedMessages, setGroupedMessages] = useState({})
+  // Client-side only state for test button
+  const [isClient, setIsClient] = useState(false)
   const typingTimeoutRef = useRef(null)
   const messagesEndRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -72,6 +75,7 @@ export default function ChatWithExpert() {
   const mediaRecorderRef = useRef(null)
   const audioRef = useRef(null)
   const recordingIntervalRef = useRef(null)
+  const notifiedMessagesRef = useRef(new Set()) // Track notified message IDs to prevent duplicates
 
   // Mark all messages as read when conversation is opened
   const markAllMessagesAsRead = useCallback(async () => {
@@ -120,6 +124,129 @@ export default function ChatWithExpert() {
       fetchCurrentUser()
     }
   }, [user])
+
+  // Set client-side flag to prevent hydration mismatch
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then(() => {
+        })
+      }
+    }
+  }, [])
+
+  // Hybrid notification helper - shows in-app toast when tab is focused, browser notification when not
+  const showHybridNotification = (title, body, icon = null, messageId = null) => {
+    // Check if we've already notified for this message to prevent duplicates
+    if (messageId && notifiedMessagesRef.current.has(messageId)) {  
+      return
+    }
+
+    // Mark this message as notified
+    if (messageId) {
+      notifiedMessagesRef.current.add(messageId)
+    }
+
+    const isTabFocused = typeof document !== 'undefined' && document.hasFocus()
+    
+    if (isTabFocused) {
+      // Tab is focused - show in-app toast notification
+      showInAppNotification({
+        title,
+        description: body,
+        avatar: icon,
+        messageId
+      })
+    } else {
+      // Tab is not focused - show browser/OS notification
+      showBrowserNotification(title, body, icon)
+    }
+  }
+
+  // Helper function to show browser notification
+  const showBrowserNotification = (title, body, icon = null) => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      return
+    }
+
+    if (Notification.permission === 'granted') {
+      try {
+        // Use unique tag for each notification so multiple can show
+        const notificationId = `notification-${Date.now()}-${Math.random()}`
+        
+        const iconUrl = icon || '/logo.png'
+        const notificationOptions = {
+          body: body,
+          icon: iconUrl,
+          badge: '/logo.png',
+          tag: notificationId, // Unique tag for each notification
+          requireInteraction: false, // Set to true if you want user to click to dismiss
+          silent: false, // Play sound
+          dir: 'ltr',
+          image: iconUrl, // Large image (supported in some browsers)
+          timestamp: Date.now(),
+          data: { 
+            url: window.location.href,
+            timestamp: Date.now()
+          }
+        }
+
+        const notification = new Notification(title, notificationOptions)
+        
+        // Store reference to prevent garbage collection
+        if (!window.activeNotifications || !(window.activeNotifications instanceof Map)) {
+          window.activeNotifications = new Map()
+        }
+        // Store the notification object itself, not just the ID
+        window.activeNotifications.set(notificationId, notification)
+
+        setTimeout(() => {
+          if (notification && notification.close) {
+            notification.close()
+          }
+          if (window.activeNotifications) {
+            window.activeNotifications.delete(notificationId)
+          }
+        }, 10000)
+
+        notification.onclick = (event) => {
+          event.preventDefault()
+          if (notification && notification.close) {
+            notification.close()
+          }
+          if (window.activeNotifications) {
+            window.activeNotifications.delete(notificationId)
+          }
+          window.focus()
+        }
+
+        notification.onerror = (error) => {
+          if (window.activeNotifications) {
+            window.activeNotifications.delete(notificationId)
+          }
+        }
+
+        notification.onclose = () => {
+          if (window.activeNotifications) {
+            window.activeNotifications.delete(notificationId)
+          }
+        }
+      } catch (error) {
+      }
+    } else if (Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          // Retry showing the notification
+          showBrowserNotification(title, body, icon)
+        }
+      })  
+    }
+  }
 
   useEffect(() => {
     const loadExperts = async () => {
@@ -237,7 +364,7 @@ export default function ChatWithExpert() {
               senderName: `${msg.sender.firstName || ''} ${msg.sender.lastName || ''}`.trim() || msg.sender.username,
               content: msg.content,
               timestamp: new Date(msg.createdAt),
-              isExpert: msg.senderId === currentUser?.id,
+              isExpert: String(msg.senderId) === String(currentUser?.id), // If sender is current user (learner), message goes on right
               seen: msg.isRead,
               seenTime: msg.readAt ? new Date(msg.readAt) : null,
               type: msg.messageType,
@@ -341,57 +468,198 @@ export default function ChatWithExpert() {
 
   // Socket.io real-time messaging
   useEffect(() => {
-    if (!socket || !isConnected) return
+    if (!socket || !isConnected) {
+      return
+    }
 
     const handleNewMessage = (data) => {
-      if (data.conversationId === selectedExpert?.conversationId) {
+      const normalizedConversationId = String(data.conversationId)
+      const normalizedSelectedConversationId = String(selectedExpert?.conversationId || '')
+
+      const isCurrentConversation = normalizedConversationId === normalizedSelectedConversationId
+      
+      const isFromOtherUser = String(data.message?.senderId) !== String(currentUser?.id)
+      
+      const senderName = `${data.message?.sender?.firstName || ''} ${data.message?.sender?.lastName || ''}`.trim() || data.message?.sender?.username || 'Someone'
+      
+      let expertInfo = null
+      let conversationName = senderName
+      
+      setExperts(prev => {
+        const updated = prev.map(expert => {
+          const normalizedExpertConversationId = String(expert.conversationId || '')
+          if (normalizedExpertConversationId === normalizedConversationId) {
+            expertInfo = expert
+            conversationName = expert.name || senderName
+            return {
+              ...expert,
+              lastMessagePreview: data.message?.content || (data.message?.messageType === 'image' ? 'Image' : data.message?.messageType === 'document' ? 'Document' : 'Message'),
+              lastMessage: new Date().toLocaleString(),
+              unreadCount: isCurrentConversation ? 0 : (String(data.message?.senderId) === String(currentUser?.id) ? expert.unreadCount : expert.unreadCount + 1)
+            }
+          }
+          return expert
+        })
+        return updated
+      })
+      
+      if (isFromOtherUser && data.message && !isCurrentConversation) {
+        const messagePreview = data.message.content || 
+          (data.message.messageType === 'image' ? '📷 Image' : 
+           data.message.messageType === 'document' ? '📄 Document' : 
+           data.message.messageType === 'audio' ? '🎤 Audio' : 
+           'New message')
+        
+        setTimeout(() => {
+          showHybridNotification(
+            conversationName,
+            messagePreview, 
+            expertInfo?.avatar || '/logo.png',
+            data.message?.id
+          )
+        }, 0)
+      }
+      
+      if (isCurrentConversation) {
         const newMessage = {
           id: data.message.id,
           senderId: data.message.senderId,
-          senderName: `${data.message.sender.firstName || ''} ${data.message.sender.lastName || ''}`.trim() || data.message.sender.username,
+          senderName: `${data.message.sender?.firstName || ''} ${data.message.sender?.lastName || ''}`.trim() || data.message.sender?.username || 'Unknown',
           content: data.message.content,
           timestamp: new Date(data.message.createdAt),
-          isExpert: data.message.senderId === currentUser?.id,
-          seen: data.message.isRead,
+          isExpert: String(data.message.senderId) === String(currentUser?.id), 
+          seen: data.message.isRead || false,
           seenTime: data.message.readAt ? new Date(data.message.readAt) : null,
-          type: data.message.messageType,
+          type: data.message.messageType || 'text',
           mediaUrl: data.message.mediaUrl,
-          audioDuration: data.message.audioDuration
+          audioDuration: data.message.audioDuration,
+          replyTo: data.message.replyToMessage ? {
+            id: data.message.replyToMessage.id,
+            content: data.message.replyToMessage.content,
+            senderName: `${data.message.replyToMessage.sender?.firstName || ''} ${data.message.replyToMessage.sender?.lastName || ''}`.trim() || data.message.replyToMessage.sender?.username || 'Unknown'
+          } : null
         }
         
         setMessages(prev => {
-          const messageExists = prev.some(msg => msg.id === newMessage.id)
+          const messageExists = prev.some(msg => String(msg.id) === String(newMessage.id))
           if (messageExists) {
-            return prev
+            return prev.map(msg => {
+              if (String(msg.id) === String(newMessage.id) || (msg.id?.startsWith('temp-') && String(msg.senderId) === String(newMessage.senderId) && msg.content === newMessage.content)) {
+                return newMessage
+              }
+              return msg
+            })
           }
           
-          if (newMessage.senderId !== currentUser?.id) {
+          const filtered = prev.filter(msg => {
+            if (msg.id?.startsWith('temp-') && String(msg.senderId) === String(newMessage.senderId)) {
+              return false
+            }
+            return true
+          })
+          
+          if (String(newMessage.senderId) !== String(currentUser?.id)) {
             setTimeout(() => {
               markAllMessagesAsRead()
             }, 500)
           }
           
-          return [...prev, newMessage]
+          const updated = [...filtered, newMessage].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+          setGroupedMessages(groupMessagesByDate(updated))
+          
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+          }, 100)
+          
+          return updated
         })
       }
     }
 
     const handleMessageNotification = (data) => {
-      setExperts(prev => prev.map(expert => 
-        expert.conversationId === data.conversationId
-          ? { 
-              ...expert, 
-              lastMessagePreview: data.message.content,
-              lastMessage: new Date().toLocaleString(),
-              // Only increment unread count if this conversation is not currently selected
-              unreadCount: selectedExpert?.conversationId === data.conversationId ? 0 : expert.unreadCount + 1
+      const isFromOtherUser = String(data.message?.senderId) !== String(currentUser?.id)
+      
+      const senderName = `${data.message?.sender?.firstName || ''} ${data.message?.sender?.lastName || ''}`.trim() || data.message?.sender?.username || 'Someone'
+      
+      setExperts(prev => prev.map(expert => {
+        const isCurrentConversation = String(expert.conversationId) === String(data.conversationId)
+        
+        if (isCurrentConversation) {
+          if (isFromOtherUser && data.message) {
+            const messagePreview = data.message.content || 
+              (data.message.messageType === 'image' ? '📷 Image' : 
+               data.message.messageType === 'document' ? '📄 Document' : 
+               data.message.messageType === 'audio' ? '🎤 Audio' : 
+               'New message')
+            
+            setTimeout(() => {
+              showHybridNotification(
+                expert.name || senderName,
+                messagePreview, 
+                expert.avatar || '/logo.png', 
+                data.message?.id
+              )
+            }, 0)
+          }
+          
+          return { 
+            ...expert, 
+            lastMessagePreview: data.message.content,
+            lastMessage: new Date().toLocaleString(),
+            unreadCount: String(selectedExpert?.conversationId) === String(data.conversationId) ? 0 : expert.unreadCount + 1
+          }
+        }
+        return expert
+      }))
+      
+      if (String(selectedExpert?.conversationId) === String(data.conversationId)) {
+        const newMessage = {
+          id: data.message.id,
+          senderId: data.message.senderId,
+          senderName: `${data.message.sender?.firstName || ''} ${data.message.sender?.lastName || ''}`.trim() || data.message.sender?.username || 'Unknown',
+          content: data.message.content,
+          timestamp: new Date(data.message.createdAt),
+          isExpert: String(data.message.senderId) === String(currentUser?.id), 
+          seen: data.message.isRead || false,
+          seenTime: data.message.readAt ? new Date(data.message.readAt) : null,
+          type: data.message.messageType || 'text',
+          mediaUrl: data.message.mediaUrl,
+          audioDuration: data.message.audioDuration,
+          replyTo: data.message.replyToMessage ? {
+            id: data.message.replyToMessage.id,
+            content: data.message.replyToMessage.content,
+            senderName: `${data.message.replyToMessage.sender?.firstName || ''} ${data.message.replyToMessage.sender?.lastName || ''}`.trim() || data.message.replyToMessage.sender?.username || 'Unknown'
+          } : null
+        }
+        
+        setMessages(prev => {
+          const messageExists = prev.some(msg => String(msg.id) === String(newMessage.id))
+          if (!messageExists) {
+            const updated = [...prev, newMessage].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+            setGroupedMessages(groupMessagesByDate(updated))
+            
+            // Mark messages as read if received from other user
+            if (String(newMessage.senderId) !== String(currentUser?.id)) {
+              setTimeout(() => {
+                markAllMessagesAsRead()
+              }, 500)
             }
-          : expert
-      ))
+            
+            // Scroll to bottom when new message arrives
+            setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+            }, 100)
+            
+            return updated
+          }
+          return prev
+        })
+      }
     }
 
     const handleMessagesRead = (data) => {
-      if (data.conversationId === selectedExpert?.conversationId) {
+      // Normalize conversation IDs to string for comparison
+      if (String(data.conversationId) === String(selectedExpert?.conversationId)) {
         // Update message status to show as read
         setMessages(prev => prev.map(msg => 
           data.messageIds.includes(msg.id)
@@ -402,13 +670,15 @@ export default function ChatWithExpert() {
     }
 
     const handleTypingStart = (data) => {
-      if (data.conversationId === selectedExpert?.conversationId && data.userId !== currentUser?.id) {
+      // Normalize conversation IDs to string for comparison
+      if (String(data.conversationId) === String(selectedExpert?.conversationId) && String(data.userId) !== String(currentUser?.id)) {
         setTypingUsers(prev => new Set([...prev, data.userId]))
       }
     }
 
     const handleTypingStop = (data) => {
-      if (data.conversationId === selectedExpert?.conversationId) {
+      // Normalize conversation IDs to string for comparison
+      if (String(data.conversationId) === String(selectedExpert?.conversationId)) {
         setTypingUsers(prev => {
           const newSet = new Set(prev)
           newSet.delete(data.userId)
@@ -418,7 +688,8 @@ export default function ChatWithExpert() {
     }
 
     const handleMessageReaction = (data) => {
-      if (data.conversationId === selectedExpert?.conversationId) {
+      // Normalize conversation IDs to string for comparison
+      if (String(data.conversationId) === String(selectedExpert?.conversationId)) {
         setMessageReactions(prev => ({
           ...prev,
           [data.messageId]: data.reactions
@@ -445,16 +716,29 @@ export default function ChatWithExpert() {
 
   // Join/leave conversation when expert is selected
   useEffect(() => {
-    if (selectedExpert?.conversationId && isConnected) {
+    if (selectedExpert?.conversationId && isConnected && socket) {
       joinConversation(selectedExpert.conversationId)
-    }
+      
+      const handleJoinedConversation = (data) => {}
+      socket.on('joined_conversation', handleJoinedConversation)
+      
+      const handleReconnect = () => {
+        if (selectedExpert?.conversationId) {
+          joinConversation(selectedExpert.conversationId)
+        }
+      }
+      
+      socket.on('connect', handleReconnect)
 
-    return () => {
-      if (selectedExpert?.conversationId && isConnected) {
-        leaveConversation(selectedExpert.conversationId)
+      return () => {
+        socket.off('connect', handleReconnect)
+        socket.off('joined_conversation', handleJoinedConversation)
+        if (selectedExpert?.conversationId && isConnected) {
+          leaveConversation(selectedExpert.conversationId)
+        }
       }
     }
-  }, [selectedExpert?.conversationId, isConnected, joinConversation, leaveConversation])
+  }, [selectedExpert?.conversationId, isConnected, socket, joinConversation, leaveConversation])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -569,20 +853,7 @@ export default function ChatWithExpert() {
           }
         }
         
-        if (isConnected && (messageContent || mediaUrl)) {
-          socketSendMessage({
-            conversationId: selectedExpert.conversationId,
-            content: messageContent,
-            messageType: messageType,
-            mediaUrl: mediaUrl
-          })
-          setMessage('')
-          setAttachments([])
-          setShowEmojiPicker(false)
-          setReplyingTo(null)
-        }
-
-        // Also send via API to ensure persistence
+        // Send via API first to ensure persistence and get message ID
         if (messageContent || mediaUrl) {
           const response = await fetch(`/api/conversations/${selectedExpert.conversationId}/messages`, {
             method: 'POST',
@@ -593,34 +864,62 @@ export default function ChatWithExpert() {
               content: messageContent,
               messageType: messageType,
               mediaUrl: mediaUrl,
-              replyToMessageId: replyingTo?.id || null
+              replyToMessageId: replyingTo?.id || null,
+              audioDuration: attachments.find(a => a.type === 'audio')?.duration || null
             })
           })
         
           const data = await response.json()
           
           if (data.success) {
-            // Only add to local state if Socket.io is not connected (fallback)
-            if (!isConnected) {
-              const newMessage = {
-                id: data.message.id,
-                senderId: data.message.senderId,
-                senderName: `${data.message.sender.firstName || ''} ${data.message.sender.lastName || ''}`.trim() || data.message.sender.username,
-                content: data.message.content,
-                timestamp: new Date(data.message.createdAt),
-                isExpert: true, // Current user's messages should be on the right
-                seen: false,
-                type: data.message.messageType,
-                mediaUrl: data.message.mediaUrl
-              }
-              setMessages(prev => [...prev, newMessage])
-              // Clear input when API call succeeds and Socket.io is not connected
-              setMessage('')
-              setAttachments([])
-              setShowEmojiPicker(false)
-              setReplyingTo(null)
+            setMessage('')
+            setAttachments([])
+            setShowEmojiPicker(false)
+            setReplyingTo(null)
+            
+            const newMessage = {
+              id: data.message.id,
+              senderId: data.message.senderId,
+              senderName: `${data.message.sender?.firstName || ''} ${data.message.sender?.lastName || ''}`.trim() || data.message.sender?.username || 'You',
+              content: data.message.content,
+              timestamp: new Date(data.message.createdAt),
+              isExpert: true, 
+              seen: false,
+              type: data.message.messageType,
+              mediaUrl: data.message.mediaUrl,
+              audioDuration: data.message.audioDuration,
+              replyTo: data.message.replyToMessage ? {
+                id: data.message.replyToMessage.id,
+                content: data.message.replyToMessage.content,
+                senderName: `${data.message.replyToMessage.sender?.firstName || ''} ${data.message.replyToMessage.sender?.lastName || ''}`.trim() || data.message.replyToMessage.sender?.username || 'Unknown'
+              } : null
             }
-          } else {
+            
+            setMessages(prev => {
+              const messageExists = prev.some(msg => String(msg.id) === String(newMessage.id))
+              if (!messageExists) {
+                const updated = [...prev, newMessage].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+                setGroupedMessages(groupMessagesByDate(updated))
+                return updated
+              }
+              return prev
+            })
+            
+            setExperts(prev => prev.map(expert => 
+              String(expert.conversationId) === String(selectedExpert.conversationId)
+                ? { 
+                    ...expert, 
+                    lastMessagePreview: messageContent || (messageType === 'image' ? 'Image' : messageType === 'document' ? 'Document' : 'Message'),
+                    lastMessage: new Date().toLocaleString(),
+                    unreadCount: 0 
+                  }
+                : expert
+            ))
+            
+            setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+            }, 100)
+
           }
         }
       } catch (error) {
@@ -638,28 +937,23 @@ export default function ChatWithExpert() {
   const handleTyping = () => {
     if (!selectedExpert?.conversationId || !isConnected) return
 
-    // Start typing indicator
     if (!isUserTyping) {
       setIsUserTyping(true)
       startTyping(selectedExpert.conversationId)
     }
 
-    // Clear existing timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current)
     }
 
-     // Set timeout to stop typing indicator after 5 seconds of inactivity
      typingTimeoutRef.current = setTimeout(() => {
        setIsUserTyping(false)
        stopTyping(selectedExpert.conversationId)
      }, 5000)
   }
 
-  // WhatsApp-style reply functions
   const handleReplyToMessage = (message) => {
     setReplyingTo(message)
-    // Focus on the input field
     const inputElement = document.querySelector('input[placeholder="Type a message"]')
     if (inputElement) {
       inputElement.focus()
@@ -670,7 +964,6 @@ export default function ChatWithExpert() {
     setReplyingTo(null)
   }
 
-  // Handle message reactions
   const handleReaction = async (messageId, emoji) => {
     if (!selectedExpert?.conversationId || !currentUser) return
 
@@ -686,13 +979,11 @@ export default function ChatWithExpert() {
       const data = await response.json()
 
       if (data.success) {
-        // Update local state
         setMessageReactions(prev => ({
           ...prev,
           [messageId]: data.reactions
         }))
 
-        // Emit to socket for real-time updates
         if (isConnected) {
           socket.emit('message_reaction', {
             conversationId: selectedExpert.conversationId,
@@ -707,17 +998,14 @@ export default function ChatWithExpert() {
     }
   }
 
-  // Get reaction count for an emoji
   const getReactionCount = (messageId, emoji) => {
     return messageReactions[messageId]?.[emoji]?.length || 0
   }
 
-  // Check if current user has reacted with emoji
   const hasUserReacted = (messageId, emoji) => {
     return messageReactions[messageId]?.[emoji]?.includes(currentUser?.id) || false
   }
 
-  // Pin/Unpin message
   const handlePinMessage = async (messageId, action) => {
     if (!selectedExpert?.conversationId || !currentUser) return
 
@@ -733,14 +1021,12 @@ export default function ChatWithExpert() {
       const data = await response.json()
 
       if (data.success) {
-        // Update local state
         setMessages(prev => prev.map(msg => 
           msg.id === messageId 
             ? { ...msg, isPinned: action === 'pin', pinnedAt: action === 'pin' ? new Date() : null }
             : msg
         ))
 
-        // Update pinned messages list
         if (action === 'pin') {
           setPinnedMessages(prev => [data.message, ...prev])
         } else {
@@ -751,7 +1037,6 @@ export default function ChatWithExpert() {
     }
   }
 
-  // Star/Unstar message
   const handleStarMessage = async (messageId, action) => {
     if (!selectedExpert?.conversationId || !currentUser) return
 
@@ -767,7 +1052,6 @@ export default function ChatWithExpert() {
       const data = await response.json()
 
       if (data.success) {
-        // Update local state
         setStarredMessages(prev => {
           const newSet = new Set(prev)
           if (action === 'star') {
@@ -782,7 +1066,6 @@ export default function ChatWithExpert() {
     }
   }
 
-  // Group messages by date
   const groupMessagesByDate = (messages) => {
     const groups = {}
     const today = new Date()
@@ -816,7 +1099,6 @@ export default function ChatWithExpert() {
     return groups
   }
 
-  // Search functionality
   const handleSearch = async () => {
     if (!messageSearchQuery.trim() || !selectedExpert?.conversationId) return
 
@@ -1416,7 +1698,7 @@ export default function ChatWithExpert() {
   }
 
   if (loading) {
-  return (
+    return (
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-7xl mx-auto h-full">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 h-full">
@@ -1532,6 +1814,7 @@ export default function ChatWithExpert() {
                   
                   if (!expert.conversationId) {
                     try {
+                      setLoading(true)
                       const response = await fetch('/api/conversations', {
                         method: 'POST',
                         headers: {
@@ -1559,8 +1842,21 @@ export default function ChatWithExpert() {
                             : e
                         ))  
                       } else {
+                        // Show error message to user
+                        const errorMessage = data.error || 'Failed to start conversation'
+                        const errorDetails = data.details || ''
+                        
+                        if (response.status === 403) {
+                          // Booking required error
+                          alert(`${errorMessage}\n\n${errorDetails}\n\nPlease complete a booking with this expert first to start chatting.`)
+                        } else {
+                          alert(`${errorMessage}\n\n${errorDetails}`)
+                        }
                       }
                     } catch (error) {
+                      alert(`Failed to start conversation. Please try again later.\n\nError: ${error.message}`)
+                    } finally {
+                      setLoading(false)
                     }
                   } else {
                     setSelectedExpert(expert)
@@ -1750,15 +2046,13 @@ export default function ChatWithExpert() {
                 {Object.keys(groupedMessages).length > 0 ? (
                   Object.entries(groupedMessages).map(([dateGroup, groupMessages]) => (
                     <div key={dateGroup} className="mb-6">
-                      {/* Date Group Header */}
                       <div className="flex items-center justify-center mb-4">
                         <div className="flex-1 h-px bg-gray-300"></div>
                         <div className="mx-4 bg-white px-3 py-1 rounded-full shadow-sm border">
-                          <span className="text-xs font-medium text-gray-600">{dateGroup}</span>
+                          <span className="text-xs font-medium text-gray-600">{dateGroup}</span>   
                         </div>
                         <div className="flex-1 h-px bg-gray-300"></div>
-                      </div>
-                      {/* Messages in this group */}
+                      </div>  
                       {groupMessages.map((msg) => {
                         if (msg.deletedForSender && msg.isExpert) return null
                         
@@ -1797,7 +2091,6 @@ export default function ChatWithExpert() {
                             borderRadius: msg.isExpert ? '18px 18px 4px 18px' : '18px 18px 18px 4px'
                           }}
                             >
-                          {/* WhatsApp-style Reply Preview */}
                           {msg.replyTo && (
                             <div className={`mb-2 p-2 rounded border-l-4 ${
                               msg.isExpert 
@@ -2553,8 +2846,10 @@ export default function ChatWithExpert() {
              <AlertDialogCancel>Close</AlertDialogCancel>
            </AlertDialogFooter>
          </AlertDialogContent>
-       </AlertDialog>
+      </AlertDialog>
 
-     </div>
-   )
- }
+      <InAppNotificationContainer />
+
+    </div>
+  )
+}

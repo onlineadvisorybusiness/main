@@ -1,6 +1,7 @@
 import { auth } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
+import { socketManager, getSocketIO } from '@/lib/socket'
 
 export async function GET(request, { params }) {
   try {
@@ -120,7 +121,6 @@ export async function GET(request, { params }) {
     })
 
   } catch (error) {
-    console.error('Error fetching messages:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })
@@ -236,8 +236,7 @@ export async function POST(request, { params }) {
         }
       }
     })
-
-    // If this is a thread reply, update the parent message's thread count
+    
     if (parentMessageId) {
       await prisma.message.update({
         where: { id: parentMessageId },
@@ -257,15 +256,53 @@ export async function POST(request, { params }) {
       }
     })
 
+    const normalizedConversationId = String(conversationId)
+    
+    try {
+
+      const io = getSocketIO()
+      
+      if (io) {
+        const messageForSocket = {
+          ...message,
+          createdAt: message.createdAt.toISOString ? message.createdAt.toISOString() : message.createdAt,
+          updatedAt: message.updatedAt.toISOString ? message.updatedAt.toISOString() : message.updatedAt,
+          readAt: message.readAt?.toISOString ? message.readAt.toISOString() : message.readAt,
+          editedAt: message.editedAt?.toISOString ? message.editedAt.toISOString() : message.editedAt
+        }
+        
+        const conversationRoom = io.sockets.adapter.rooms.get(`conversation:${normalizedConversationId}`)
+        const personalRoom = io.sockets.adapter.rooms.get(`user:${otherParticipantId}`)
+                
+        io.to(`conversation:${normalizedConversationId}`).emit('new_message', {
+          message: messageForSocket,
+          conversationId: normalizedConversationId
+        })
+
+        io.to(`user:${otherParticipantId}`).emit('new_message', {
+          message: messageForSocket,
+          conversationId: normalizedConversationId
+        })
+
+        io.to(`user:${otherParticipantId}`).emit('message_notification', {
+          message: messageForSocket,
+          conversationId: normalizedConversationId,
+          senderId: user.id
+        })
+      } else {
+      }
+    } catch (socketError) { 
+    }
+
     return NextResponse.json({
       success: true,
       message
     })
 
   } catch (error) {
-    console.error('Error sending message:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })
   }
 }
+

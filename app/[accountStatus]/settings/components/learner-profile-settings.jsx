@@ -55,11 +55,6 @@ export default function LearnerProfileSettings() {
             const data = await response.json()
             const dbUser = data.user
             
-            console.log('Loading learner profile data from database:', {
-              dbUser: dbUser.id,
-              hasProfileData: !!dbUser.profileData
-            })
-
             setProfileData({
               firstName: dbUser.firstName || user.firstName || '',
               lastName: dbUser.lastName || user.lastName || '',
@@ -68,8 +63,6 @@ export default function LearnerProfileSettings() {
               avatar: dbUser.avatar || user.publicMetadata?.avatarUrl || user.imageUrl || ''
             })
           } else {
-            // Fallback to Clerk data if database fetch fails
-            console.log('Database fetch failed, using Clerk data')
             const avatarUrl = user.publicMetadata?.avatarUrl || user.imageUrl || ''
             
             setProfileData({
@@ -81,8 +74,6 @@ export default function LearnerProfileSettings() {
             })
           }
         } catch (error) {
-          console.error('Error loading profile data:', error)
-          // Fallback to Clerk data
           const avatarUrl = user.publicMetadata?.avatarUrl || user.imageUrl || ''
           
           setProfileData({
@@ -141,8 +132,6 @@ export default function LearnerProfileSettings() {
       const data = await response.json()
       const imageUrl = data.imageUrl
 
-      console.log('Avatar upload successful:', { imageUrl, publicId: data.publicId })
-
       setProfileData(prev => ({
         ...prev,
         avatar: imageUrl
@@ -155,7 +144,6 @@ export default function LearnerProfileSettings() {
         description: "Your profile picture has been uploaded. Click 'Save Profile' to save changes.",
       })
     } catch (error) {
-      console.error('Error uploading avatar:', error)
       toast({
         title: "Upload Failed",
         description: "Failed to update your profile picture. Please try again.",
@@ -189,8 +177,6 @@ export default function LearnerProfileSettings() {
         }
       })
 
-      console.log('Clerk profile updated successfully')
-
       const response = await fetch('/api/users/update-profile', {
         method: 'POST',
         headers: {
@@ -206,10 +192,8 @@ export default function LearnerProfileSettings() {
 
       if (response.ok) {
         const result = await response.json()
-        console.log('Database updated successfully:', result)
       } else {
         const error = await response.json()
-        console.error('Database update failed:', error)
       }
 
       // Clear unsaved changes flag
@@ -220,7 +204,6 @@ export default function LearnerProfileSettings() {
         description: "Your profile has been updated successfully in both Clerk and database.",
       })
     } catch (error) {
-      console.error('Error saving profile:', error)
       toast({
         title: "Save Failed",
         description: "Failed to update your profile. Please try again.",
@@ -291,8 +274,7 @@ export default function LearnerProfileSettings() {
         newPassword: '',
         confirmPassword: ''
       })
-    } catch (error) {
-      console.error('Error changing password:', error)
+    } catch (error) { 
       toast({
         title: "Password Change Failed",
         description: error.message || "Failed to change password. Please try again.",

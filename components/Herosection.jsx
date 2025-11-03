@@ -28,7 +28,6 @@ export function HeroSection() {
             setUserStatus(data.user?.accountStatus || 'learner')
           }
         } catch (error) {
-          console.error('Error fetching user status:', error)
           setUserStatus('learner')
         } finally {
           setIsLoading(false)

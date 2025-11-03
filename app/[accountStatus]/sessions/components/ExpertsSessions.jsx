@@ -81,7 +81,6 @@ export default function ExpertsSessions({ user }) {
         throw new Error(data.error || 'Failed to get auth URL')
       }
     } catch (error) {
-      console.error('Error connecting Google Calendar:', error)
       toast({
         title: "Connection Failed",
         description: "Failed to initiate Google Calendar connection",
@@ -115,7 +114,6 @@ export default function ExpertsSessions({ user }) {
         throw new Error(data.error || 'Failed to disconnect Google Calendar')
       }
     } catch (error) {
-      console.error('Error disconnecting Google Calendar:', error)
       toast({
         title: "Disconnection Failed",
         description: "Failed to disconnect Google Calendar",
@@ -187,7 +185,6 @@ export default function ExpertsSessions({ user }) {
   const fetchSessions = async () => {
     try {
       setIsLoadingSessions(true)
-      console.log('🔍 DEBUG: Fetching sessions...')
       
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 3000) // 3 second timeout
@@ -199,22 +196,16 @@ export default function ExpertsSessions({ user }) {
       
       clearTimeout(timeoutId)
       
-      console.log('🔍 DEBUG: Sessions fetch response:', result)
       
       if (response.ok && result.success) {
         setSessions(result.sessions || [])
-        console.log('✅ DEBUG: Sessions loaded:', result.sessions?.length || 0)
-        console.log('🔍 DEBUG: First session data:', result.sessions?.[0])
       } else {
-        console.error('❌ DEBUG: Failed to fetch sessions:', result.error)
         setSessions([])
       }
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log('⏰ DEBUG: Request was aborted due to timeout')
         setSessions([])
       } else {
-        console.error('❌ DEBUG: Error fetching sessions:', error)
         setSessions([])
       }
     } finally {
@@ -269,7 +260,6 @@ export default function ExpertsSessions({ user }) {
     setIsCreating(true)
     
     try {
-      console.log('🔍 DEBUG: Form data being sent:', formData)
       
       const sessionData = {
         eventName: formData.eventName,
@@ -281,7 +271,6 @@ export default function ExpertsSessions({ user }) {
         advicePoints: formData.advicePoints
       }
       
-      console.log('🔍 DEBUG: Session data being sent to API:', sessionData)
 
       const response = await fetch('/api/sessions', {
         method: 'POST',
@@ -291,26 +280,19 @@ export default function ExpertsSessions({ user }) {
         body: JSON.stringify(sessionData)
       })
 
-      console.log('🔍 DEBUG: Response status:', response.status)
-      console.log('🔍 DEBUG: Response headers:', response.headers)
-
       const result = await response.json()
-      console.log('🔍 DEBUG: Response body:', result)
 
       if (!response.ok) {
-        console.error('❌ DEBUG: API Error Response:', result)
         throw new Error(result.error || 'Failed to create session')
       }
 
-      console.log('✅ DEBUG: Session created successfully:', result)
       toast({
         title: "Success",
         description: "Session created successfully!",
       })
       
       if (result.session) {
-        setSessions(prevSessions => [result.session, ...prevSessions])
-        console.log('✅ DEBUG: Session added to list instantly')
+        setSessions(prevSessions => [result.session, ...prevSessions])  
       }
       
       setShowCreateForm(false)
@@ -329,7 +311,6 @@ export default function ExpertsSessions({ user }) {
       })
 
     } catch (error) {
-      console.error('❌ DEBUG: Error creating session:', error)
       toast({
         title: "Error",
         description: `Error creating session: ${error.message}`,
@@ -343,7 +324,6 @@ export default function ExpertsSessions({ user }) {
   const handleActivateSession = async (sessionId) => {
     setActivatingSessionId(sessionId)
     try {
-      console.log('🔍 DEBUG: Activating session:', sessionId)
       
       const response = await fetch(`/api/sessions/${sessionId}/activate`, {
         method: 'PATCH',
@@ -358,7 +338,6 @@ export default function ExpertsSessions({ user }) {
       }
 
       const result = await response.json()
-      console.log('✅ DEBUG: Session activated successfully:', result)
 
       // Update the session in the sessions state
       setSessions(prevSessions => 
@@ -369,13 +348,11 @@ export default function ExpertsSessions({ user }) {
         )
       )
 
-      console.log('✅ Session activated and updated in list')
       toast({
         title: "Success",
         description: "Session activated successfully!",
       })
     } catch (error) {
-      console.error('❌ Error activating session:', error)
       toast({
         title: "Error",
         description: 'Error activating session: ' + error.message,
@@ -389,7 +366,6 @@ export default function ExpertsSessions({ user }) {
   const handleDeactivateSession = async (sessionId) => {
     setDeactivatingSessionId(sessionId)
     try {
-      console.log('🔍 DEBUG: Deactivating session:', sessionId)
       
       const response = await fetch(`/api/sessions/${sessionId}/deactivate`, {
         method: 'PATCH',
@@ -404,7 +380,6 @@ export default function ExpertsSessions({ user }) {
       }
 
       const result = await response.json()
-      console.log('✅ DEBUG: Session deactivated successfully:', result)
 
       // Update the session in the sessions state
       setSessions(prevSessions => 
@@ -415,13 +390,11 @@ export default function ExpertsSessions({ user }) {
         )
       )
 
-      console.log('✅ Session deactivated and updated in list')
       toast({
         title: "Success",
         description: "Session deactivated successfully!",
       })
     } catch (error) {
-      console.error('❌ Error deactivating session:', error)
       toast({
         title: "Error",
         description: 'Error deactivating session: ' + error.message,
@@ -433,7 +406,6 @@ export default function ExpertsSessions({ user }) {
   }
 
   const handleEditSession = (session) => {
-    console.log('🔍 DEBUG: Editing session:', session)
     setEditingSession(session)
     setFormData({
       eventName: session.eventName,
@@ -460,7 +432,6 @@ export default function ExpertsSessions({ user }) {
 
     setIsCreating(true)
     try {
-      console.log('🔍 DEBUG: Updating session:', editingSession.id)
       
       const sessionData = {
         eventName: formData.eventName,
@@ -486,7 +457,6 @@ export default function ExpertsSessions({ user }) {
       }
 
       const result = await response.json()
-      console.log('✅ DEBUG: Session updated successfully:', result)
 
       setSessions(prevSessions => 
         prevSessions.map(session => 
@@ -514,7 +484,6 @@ export default function ExpertsSessions({ user }) {
         advicePoints: ['', '', '', '', '', '']
       })
     } catch (error) {
-      console.error('❌ Error updating session:', error)
       toast({
         title: "Error",
         description: 'Error updating session: ' + error.message,
@@ -622,8 +591,7 @@ export default function ExpertsSessions({ user }) {
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
             <Button 
-              onClick={() => {
-                console.log('Create Session button clicked!')
+              onClick={() => {  
                 setShowCreateForm(true)
               }}
               className="bg-gradient-to-r from-slate-700 to-gray-800 hover:from-slate-800 hover:to-gray-900 text-white px-8 py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2 group"
@@ -658,7 +626,6 @@ export default function ExpertsSessions({ user }) {
           </div> 
         </div>
 
-        {console.log('showCreateForm state:', showCreateForm)}
         {(showCreateForm || showEditForm) && (
           <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4 h-full w-full">
             <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -1159,13 +1126,10 @@ export default function ExpertsSessions({ user }) {
                               try {
                                 prices = JSON.parse(prices)
                               } catch (e) {
-                                console.error('Error parsing prices:', e)
                                 prices = {}
                               }
-                            }
-                            
-                            console.log('🔍 DEBUG: Session prices:', prices)
-                            
+                              }
+                                                        
                             const priceEntries = Object.entries(prices || {}).filter(([duration, price]) => 
                               price && price.toString().trim() !== ''
                             )

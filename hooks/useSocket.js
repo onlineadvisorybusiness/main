@@ -93,7 +93,7 @@ export const useSocket = () => {
           socketRef.current = null
         }
       } catch (error) {
-        setConnectionError('Failed to connect to chat server')
+        setConnectionError(error.message)
       }
     }
 
@@ -106,53 +106,54 @@ export const useSocket = () => {
     }
   }, [user, attemptReconnect])
 
-  const joinConversation = (conversationId) => {
+  const joinConversation = useCallback((conversationId) => {
     if (socket && isConnected) {
       socket.emit('join_conversation', {
-        conversationId,
+        conversationId: String(conversationId), // Ensure it's a string
         userId: user?.id
       })
+    } else {
     }
-  }
+  }, [socket, isConnected, user?.id])
 
-  const leaveConversation = (conversationId) => {
+  const leaveConversation = useCallback((conversationId) => {
     if (socket && isConnected) {
       socket.emit('leave_conversation', { conversationId })
     }
-  }
+  }, [socket, isConnected])
 
-  const sendMessage = (messageData) => {
+  const sendMessage = useCallback((messageData) => {
     if (socket && isConnected) {
       socket.emit('send_message', messageData)
     }
-  }
+  }, [socket, isConnected])
 
-  const startTyping = (conversationId) => {
+  const startTyping = useCallback((conversationId) => {
     if (socket && isConnected) {
       socket.emit('typing_start', {
         conversationId,
         userId: user?.id
       })
     }
-  }
+  }, [socket, isConnected, user?.id])
 
-  const stopTyping = (conversationId) => {
+  const stopTyping = useCallback((conversationId) => {
     if (socket && isConnected) {
       socket.emit('typing_stop', {
         conversationId,
         userId: user?.id
       })
     }
-  }
+  }, [socket, isConnected, user?.id])
 
-  const markMessageAsRead = (messageId) => {
+  const markMessageAsRead = useCallback((messageId) => {
     if (socket && isConnected) {
       socket.emit('mark_message_read', {
         messageId,
         userId: user?.id
       })
     }
-  }
+  }, [socket, isConnected, user?.id])
 
   return {
     socket,

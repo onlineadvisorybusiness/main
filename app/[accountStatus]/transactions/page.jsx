@@ -47,7 +47,6 @@ import {
 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 
-// Real data fetching functions
 const fetchTransactions = async (filters = {}) => {
   try {
     const queryParams = new URLSearchParams()
@@ -80,7 +79,6 @@ const fetchTransactions = async (filters = {}) => {
     const data = await response.json()
     return data
   } catch (error) {
-    console.error('Error fetching transactions:', error)
     return {
       success: false,
       error: error.message,

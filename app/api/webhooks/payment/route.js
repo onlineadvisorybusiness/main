@@ -6,7 +6,6 @@ import { createCalendarEvent, isGoogleCalendarConnected } from '@/lib/google-cal
 
 const prisma = new PrismaClient()
 
-// Payment webhook validation schema
 const paymentWebhookSchema = z.object({
   bookingId: z.string().min(1, 'Booking ID is required'),
   paymentId: z.string().min(1, 'Payment ID is required'),
@@ -16,7 +15,6 @@ const paymentWebhookSchema = z.object({
   currency: z.string().min(1, 'Currency is required'),
 })
 
-// Google Calendar API setup
 const getGoogleCalendarClient = async (accessToken) => {
   const oauth2Client = new google.auth.OAuth2()
   oauth2Client.setCredentials({ access_token: accessToken })
@@ -24,13 +22,11 @@ const getGoogleCalendarClient = async (accessToken) => {
   return google.calendar({ version: 'v3', auth: oauth2Client })
 }
 
-// Generate Google Meet link
 const generateGoogleMeetLink = () => {
   const meetingId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
   return `https://meet.google.com/${meetingId}`
 }
 
-// Create Zoom meeting
 const createZoomMeeting = async (meetingData) => {
   try {
     const response = await fetch('https://api.zoom.us/v2/users/me/meetings', {
@@ -66,12 +62,10 @@ const createZoomMeeting = async (meetingData) => {
       password: data.password
     }
   } catch (error) {
-    console.error('Error creating Zoom meeting:', error)
     throw new Error('Failed to create Zoom meeting')
   }
 }
 
-// Add event to Google Calendar
 const addToGoogleCalendar = async (accessToken, eventData) => {
   try {
     const calendar = await getGoogleCalendarClient(accessToken)
@@ -106,20 +100,16 @@ const addToGoogleCalendar = async (accessToken, eventData) => {
 
     return response.data
   } catch (error) {
-    console.error('Error adding to Google Calendar:', error)
     throw new Error('Failed to add event to Google Calendar')
   }
 }
 
-// Main payment webhook handler
 export async function POST(request) {
   try {
     const body = await request.json()
     
-    // Validate webhook data
     const validatedData = paymentWebhookSchema.parse(body)
     
-    // Find the booking
     const booking = await prisma.booking.findUnique({
       where: { id: validatedData.bookingId },
       include: {
@@ -130,13 +120,10 @@ export async function POST(request) {
     })
 
     if (!booking) {
-      console.error('Booking not found:', validatedData.bookingId)
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
     }
 
-    // Only process completed payments
     if (validatedData.status !== 'completed') {
-      // Update booking status to failed/cancelled
       await prisma.booking.update({
         where: { id: validatedData.bookingId },
         data: { 
@@ -152,16 +139,10 @@ export async function POST(request) {
       })
     }
 
-    // Verify payment amount matches booking amount
     if (validatedData.amount !== booking.amount || validatedData.currency !== booking.currency) {
-      console.error('Payment amount mismatch:', {
-        expected: { amount: booking.amount, currency: booking.currency },
-        received: { amount: validatedData.amount, currency: validatedData.currency }
-      })
       return NextResponse.json({ error: 'Payment amount mismatch' }, { status: 400 })
     }
 
-    // Generate meeting link based on platform
     let meetingLink = null
     let meetingId = null
     let meetingPassword = null
@@ -171,7 +152,7 @@ export async function POST(request) {
     } else if (booking.sessionPlatform === 'zoom') {
       const startDateTime = new Date(`${booking.date.toISOString().split('T')[0]}T${booking.startTime}:00Z`)
       const endDateTime = new Date(`${booking.date.toISOString().split('T')[0]}T${booking.endTime}:00Z`)
-      const duration = Math.round((endDateTime - startDateTime) / (1000 * 60)) // duration in minutes
+      const duration = Math.round((endDateTime - startDateTime) / (1000 * 60))
       
       const zoomMeeting = await createZoomMeeting({
         title: `${booking.session.eventName} - ${booking.fullName}`,
@@ -227,7 +208,6 @@ export async function POST(request) {
       if (expertHasCalendar) {
         // Create calendar event for expert
         await createCalendarEvent(booking.expertUser.clerkId, eventData)
-        console.log('Calendar event created for expert:', booking.expertUser.email)
       }
 
       // Check if learner has Google Calendar connected
@@ -235,28 +215,14 @@ export async function POST(request) {
       
       if (learnerHasCalendar) {
         // Create calendar event for learner
-        await createCalendarEvent(booking.learner.clerkId, eventData)
-        console.log('Calendar event created for learner:', booking.learner.email)
+        await createCalendarEvent(booking.learner.clerkId, eventData)   
       }
 
-      console.log('Google Calendar integration completed:', {
-        expertConnected: expertHasCalendar,
-        learnerConnected: learnerHasCalendar,
-        meetingLink: meetingLink
-      })
-
     } catch (error) {
-      console.error('Google Calendar integration error:', error)
       // Don't fail the payment processing if calendar integration fails
     }
 
     // Send confirmation emails (you can implement this later)
-    console.log('Payment completed successfully:', {
-      bookingId: validatedData.bookingId,
-      meetingLink: meetingLink,
-      meetingId: meetingId,
-      meetingPassword: meetingPassword
-    })
 
     return NextResponse.json({
       success: true,
@@ -271,7 +237,6 @@ export async function POST(request) {
     })
 
   } catch (error) {
-    console.error('Payment webhook error:', error)
     
     if (error instanceof z.ZodError) {
       return NextResponse.json({ 

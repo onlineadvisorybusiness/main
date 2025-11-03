@@ -19,7 +19,6 @@ export async function GET() {
     })
 
   } catch (error) {
-    console.error('Error generating Google auth URL:', error)
     return NextResponse.json({ 
       error: 'Failed to generate auth URL' 
     }, { status: 500 })

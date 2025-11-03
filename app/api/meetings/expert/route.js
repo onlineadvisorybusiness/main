@@ -23,7 +23,6 @@ export async function GET() {
       }, { status: 500 })
     }
   } catch (error) {
-    console.error('Error fetching expert meetings:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })

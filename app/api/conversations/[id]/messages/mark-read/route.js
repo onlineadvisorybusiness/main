@@ -11,7 +11,15 @@ export async function POST(request, { params }) {
     }
 
     const { id: conversationId } = await params
-    const { userId: requestUserId } = await request.json()
+    
+    // Try to parse request body, but don't fail if it's empty
+    let requestUserId = null
+    try {
+      const body = await request.json().catch(() => null)
+      requestUserId = body?.userId || null
+    } catch (error) {
+      // Request body might be empty or invalid JSON, continue without userId
+    }
 
     // Get the current user from database
     const user = await prisma.user.findUnique({
@@ -55,7 +63,7 @@ export async function POST(request, { params }) {
       const { socketManager } = await import('@/lib/socket.js')
       await socketManager.notifyMessageRead(conversationId, user.id)
     } catch (error) {
-      console.error('Error notifying message read:', error)
+      // Failed to notify, but continue
     }
 
     return NextResponse.json({ 
@@ -64,7 +72,6 @@ export async function POST(request, { params }) {
     })
 
   } catch (error) {
-    console.error('Error marking messages as read:', error)
     return NextResponse.json(
       { error: 'Failed to mark messages as read' },
       { status: 500 }

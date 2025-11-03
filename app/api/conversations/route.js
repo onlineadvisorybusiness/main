@@ -76,23 +76,38 @@ export async function GET(request) {
           ? conversation.participant2 
           : conversation.participant1
 
-        // Check if there's any booking between these users (any status)
+        // Check if there's any booking between these users
+        // Allow chats for: pending (scheduled), confirmed (scheduled), completed
+        // Exclude: cancelled
         const hasBooking = await prisma.booking.findFirst({
           where: {
-            OR: [
+            AND: [
               {
-                learnerId: user.id,
-                expertId: otherParticipant.id
+                OR: [
+                  {
+                    learnerId: user.id,
+                    expertId: otherParticipant.id
+                  },
+                  {
+                    learnerId: otherParticipant.id,
+                    expertId: user.id
+                  }
+                ]
               },
               {
-                learnerId: otherParticipant.id,
-                expertId: user.id
+                status: {
+                  in: ['pending', 'confirmed', 'scheduled', 'completed']
+                }
               }
             ]
+          },
+          select: {
+            id: true,
+            status: true
           }
         })
 
-        // Only include conversation if there's any booking
+        // Only include conversation if there's a valid booking (not cancelled)
         if (!hasBooking) {
           return null
         }
@@ -126,7 +141,6 @@ export async function GET(request) {
     })
 
   } catch (error) {
-    console.error('Error fetching conversations:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })
@@ -160,28 +174,76 @@ export async function POST(request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Check if there's any booking between these users (any status)
-    const hasBooking = await prisma.booking.findFirst({
+    const otherUser = await prisma.user.findUnique({
+      where: { id: otherUserId }
+    })
+
+    if (!otherUser) {
+      return NextResponse.json({ error: 'Other user not found' }, { status: 404 })
+    }
+
+    const allBookingsBetweenUsers = await prisma.booking.findMany({
       where: {
-        OR: [
+        AND: [
           {
-            learnerId: currentUser.id,
-            expertId: otherUserId
+            OR: [
+              {
+                AND: [
+                  { learnerId: currentUser.id },
+                  { expertId: otherUserId }
+                ]
+              },
+              {
+                AND: [
+                  { learnerId: otherUserId },
+                  { expertId: currentUser.id }
+                ]
+              }
+            ]
           },
           {
-            learnerId: otherUserId,
-            expertId: currentUser.id
+            status: {
+              in: ['pending', 'confirmed', 'scheduled', 'completed']
+            }
           }
         ]
+      },
+      select: {
+        id: true,
+        status: true,
+        learnerId: true,
+        expertId: true,
+        createdAt: true
+      },
+      orderBy: {
+        createdAt: 'desc'
       }
     })
+    
+    // Filter out corrupted bookings (where learnerId === expertId)
+    // Also ensure the booking actually involves both users correctly
+    const validBookings = allBookingsBetweenUsers.filter(booking => {
+      // Reject if it's a self-booking (corrupted data)
+      if (String(booking.learnerId) === String(booking.expertId)) {
+        return false
+      }
+      
+      // Ensure the booking actually involves both the current user and other user
+      const involvesBothUsers = 
+        (String(booking.learnerId) === String(currentUser.id) && String(booking.expertId) === String(otherUserId)) ||
+        (String(booking.learnerId) === String(otherUserId) && String(booking.expertId) === String(currentUser.id))
+      
+      return involvesBothUsers
+    })
+    
+    const hasBooking = validBookings.length > 0 ? validBookings[0] : null
 
     if (!hasBooking) {
       return NextResponse.json({ 
-        error: 'You can only chat with experts after booking at least one meeting with them.' 
+        error: 'You can only chat with experts after booking at least one meeting with them.'
       }, { status: 403 })
-    }
-
+    } 
+    
     // Check if conversation already exists
     let conversation = await prisma.conversation.findFirst({
       where: {
@@ -258,7 +320,6 @@ export async function POST(request) {
     })
 
   } catch (error) {
-    console.error('Error creating/getting conversation:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })

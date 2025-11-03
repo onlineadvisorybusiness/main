@@ -125,7 +125,6 @@ export async function PATCH(request, { params }) {
     })
 
   } catch (error) {
-    console.error('Error updating message:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })
@@ -183,7 +182,6 @@ export async function DELETE(request, { params }) {
     })
 
   } catch (error) {
-    console.error('Error deleting message:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })

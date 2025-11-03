@@ -36,7 +36,6 @@ export async function GET() {
     })
 
   } catch (error) {
-    console.error('Error fetching availability:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })
@@ -126,7 +125,6 @@ export async function POST(request) {
     })
 
   } catch (error) {
-    console.error('Error saving availability:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })
@@ -163,7 +161,6 @@ export async function DELETE() {
     })
 
   } catch (error) {
-    console.error('Error clearing availability:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })

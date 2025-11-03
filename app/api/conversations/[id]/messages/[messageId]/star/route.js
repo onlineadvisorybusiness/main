@@ -103,7 +103,6 @@ export async function POST(request, { params }) {
     }
 
   } catch (error) {
-    console.error('Error starring/unstarring message:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })
@@ -146,7 +145,6 @@ export async function GET(request, { params }) {
     })
 
   } catch (error) {
-    console.error('Error checking starred message:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })

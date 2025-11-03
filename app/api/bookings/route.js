@@ -44,8 +44,7 @@ export async function POST(request) {
       booking: result.booking
     })
 
-  } catch (error) {
-    console.error('Error creating booking:', error)
+  } catch (error) { 
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })
@@ -83,14 +82,12 @@ export async function GET(request) {
     })
 
   } catch (error) {
-    console.error('Error fetching bookings:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })
   }
 }
 
-// PUT - Update booking status or complete payment
 export async function PUT(request) {
   try {
     const { userId } = await auth()
@@ -110,7 +107,6 @@ export async function PUT(request) {
 
     let result
 
-    // Handle payment completion
     if (action === 'complete_payment') {
       if (!paymentData) {
         return NextResponse.json({ 
@@ -120,7 +116,6 @@ export async function PUT(request) {
 
       result = await completePayment(bookingId, paymentData)
     } else {
-      // Handle status update
       if (!status) {
         return NextResponse.json({ 
           error: 'Missing status' 
@@ -143,7 +138,6 @@ export async function PUT(request) {
     })
 
   } catch (error) {
-    console.error('Error processing booking update:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })

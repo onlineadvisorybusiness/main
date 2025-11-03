@@ -104,7 +104,6 @@ export async function GET(request) {
     })
 
   } catch (error) {
-    console.error('Error fetching starred messages:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })

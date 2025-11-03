@@ -143,8 +143,6 @@ export async function GET(request) {
           const diffMinutes = Math.round(diffMs / (1000 * 60))
           return diffMinutes
         } catch (error) {
-          console.error('Error calculating duration:', error, { startTime, endTime })
-          return 60 // Default to 60 minutes if calculation fails
         }
       }
       
@@ -232,7 +230,6 @@ export async function GET(request) {
     })
 
   } catch (error) {
-    console.error('Error fetching transactions:', error)
     return NextResponse.json({ 
       error: 'Internal server error',
       details: error.message 
@@ -317,7 +314,6 @@ export async function POST(request) {
     })
 
   } catch (error) {
-    console.error('Error creating transaction:', error)
     return NextResponse.json({ 
       error: 'Internal server error',
       details: error.message 

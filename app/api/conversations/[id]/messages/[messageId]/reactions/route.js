@@ -92,7 +92,6 @@ export async function POST(request, { params }) {
     })
 
   } catch (error) {
-    console.error('Error handling message reaction:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -109,7 +108,6 @@ export async function GET(request, { params }) {
 
     const { messageId } = params
 
-    // Get all reactions for this message
     const reactions = await prisma.messageReaction.findMany({
       where: { messageId: messageId },
       include: {
@@ -124,7 +122,6 @@ export async function GET(request, { params }) {
       }
     })
 
-    // Group reactions by emoji
     const groupedReactions = reactions.reduce((acc, reaction) => {
       if (!acc[reaction.emoji]) {
         acc[reaction.emoji] = []
@@ -139,7 +136,6 @@ export async function GET(request, { params }) {
     })
 
   } catch (error) {
-    console.error('Error fetching message reactions:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

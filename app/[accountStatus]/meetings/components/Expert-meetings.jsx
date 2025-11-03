@@ -493,7 +493,7 @@ function ExpertMeetingCard({
               <span className="text-sm text-gray-600">Platform:</span>
               <span className="text-sm text-gray-900 capitalize">
                 {meeting.sessionPlatform === 'zoom' ? 'Zoom' : 
-                 meeting.sessionPlatform === 'google_meet' ? 'Google Meet' : 
+                 meeting.sessionPlatform === 'google-meet' ? 'Google Meet' : 
                  meeting.sessionPlatform}
               </span>
             </div>

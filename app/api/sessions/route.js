@@ -111,13 +111,11 @@ export async function POST(request) {
       expertId: user.id,
       status: 'draft'
     }
-    console.log('🔍 DEBUG: Session data to create:', sessionData)
     
     const session = await prisma.session.create({
       data: sessionData
     })
     
-    console.log('✅ DEBUG: Session created successfully:', session)
 
     return NextResponse.json({ 
       success: true, 
@@ -126,7 +124,6 @@ export async function POST(request) {
     })
 
   } catch (error) {
-    console.error('Error creating session:', error)
     return NextResponse.json({ 
       error: 'Failed to create session',
       details: error.message 
@@ -162,8 +159,7 @@ export async function GET(request) {
       sessions 
     })
 
-  } catch (error) {
-    console.error('Error fetching sessions:', error)
+  } catch (error) { 
     return NextResponse.json({ 
       error: 'Failed to fetch sessions',
       details: error.message 

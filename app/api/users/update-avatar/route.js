@@ -23,11 +23,6 @@ export async function POST(request) {
       }
     })
 
-    console.log('Database avatar updated successfully:', {
-      userId,
-      avatarUrl,
-      updatedUser: updatedUser.id
-    })
 
     return NextResponse.json({
       success: true,
@@ -35,7 +30,6 @@ export async function POST(request) {
     })
 
   } catch (error) {
-    console.error('Avatar update error:', error)
     return NextResponse.json(
       { error: 'Failed to update avatar' },
       { status: 500 }

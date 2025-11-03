@@ -37,7 +37,6 @@ export async function PATCH(request, { params }) {
       }, { status: 500 })
     }
   } catch (error) {
-    console.error('Error updating booking status:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })
