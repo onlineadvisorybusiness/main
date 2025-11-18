@@ -2634,13 +2634,23 @@ export default function ChatWithLearner() {
 
        {/* Search Modal */}
        <AlertDialog open={showSearchModal} onOpenChange={setShowSearchModal}>
-         <AlertDialogContent className="max-w-2xl max-h-[80vh] overflow-hidden">
-           <AlertDialogHeader>
-             <AlertDialogTitle className="flex items-center gap-2">
-               <Search className="h-5 w-5" />
-               Search Messages
-             </AlertDialogTitle>
-           </AlertDialogHeader>
+        <AlertDialogContent className="max-w-2xl max-h-[80vh] overflow-hidden">
+          <AlertDialogHeader>
+            <div className="flex items-center justify-between">
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Search className="h-5 w-5" />
+                Search Messages
+              </AlertDialogTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded-full hover:bg-gray-100"
+                onClick={() => setShowSearchModal(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </AlertDialogHeader>
            
            <div className="space-y-4">
              {/* Search Input */}

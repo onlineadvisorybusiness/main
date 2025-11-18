@@ -14,7 +14,8 @@ export async function GET(request, { params }) {
     const type = searchParams.get('type') || 'all'
     const sender = searchParams.get('sender') || 'all'
     const dateRange = searchParams.get('dateRange') || 'all'
-    const { id: conversationId } = params
+    const resolvedParams = await params
+    const { id: conversationId } = resolvedParams
 
     if (!query || !conversationId) {
       return NextResponse.json({ error: 'Missing search query or conversation ID' }, { status: 400 })

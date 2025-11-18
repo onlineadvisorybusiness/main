@@ -49,7 +49,8 @@ export async function PATCH(request, { params }) {
       categories,
       prices,
       currency,
-      advicePoints
+      advicePoints,
+      timezone
     } = body
 
     if (!eventName || !type || !platform || (!categories && !category) || !prices || !currency) {
@@ -89,6 +90,7 @@ export async function PATCH(request, { params }) {
         prices: prices,
         currency,
         advicePoints: advicePoints.map(point => point.trim()),
+        timezone: timezone || currentUser.timezone || 'UTC',
         status: 'draft', // Set to draft after editing
         updatedAt: new Date()
       }

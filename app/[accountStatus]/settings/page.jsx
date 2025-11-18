@@ -31,9 +31,9 @@ export default async function DashboardPage({ params }) {
   return (
     <div className="space-y-6 h-full overflow-auto">
       {accountStatus === 'expert' ? (
-        <ExpertProfileSettings />
+        <ExpertProfileSettings key="expert-settings" />
       ) : (
-        <LearnerProfileSettings />
+        <LearnerProfileSettings key="learner-settings" />
       )}
     </div>
   )
@@ -60,6 +60,6 @@ export async function generateMetadata({ params }) {
   
   return {
     title: `${userFirstName} || ${accountStatus.charAt(0).toUpperCase() + accountStatus.slice(1)} Sessions`,
-    description: `Manage your ${accountStatus} sessions`
+    description: `Manage your ${accountStatus} sessions`    
   }
 }

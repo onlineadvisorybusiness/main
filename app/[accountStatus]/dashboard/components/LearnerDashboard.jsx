@@ -215,13 +215,12 @@ export default function LearnerDashboard({ user }) {
                         </div>
                       </div>
                       
-                      {/* Right side - Duration and Amount */}
                       <div className="text-right space-y-1">
                         <div className="text-sm font-semibold text-slate-900">
                           {duration} min
                         </div>
-                        <div className="text-sm font-bold text-emerald-600">
-                          ${meeting.amount?.toFixed(2)} {meeting.currency}
+                        <div className="flex items-center gap-1 text-sm font-bold text-emerald-600">
+                          <DollarSign className="h-3 w-3 text-emerald-600 mt-1" /> {meeting.amount?.toFixed(2)}
                         </div>
                         <Badge 
                           variant="outline" 

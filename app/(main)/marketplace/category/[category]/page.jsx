@@ -66,7 +66,9 @@ export default async function CategoryPage({ params }) {
         if (sessions.length === 0) return null
 
         let averagePrice = 0
+        let min15MinPrice = null
         if (sessions.length > 0) {
+          const all15MinPrices = []
           const totalPrice = sessions.reduce((sum, session) => {
             let prices = session.prices
             if (typeof prices === 'string') {
@@ -76,10 +78,18 @@ export default async function CategoryPage({ params }) {
                 prices = {}
               }
             }
+            // Get 15-minute price if available
+            if (prices['15']) {
+              all15MinPrices.push(parseFloat(prices['15']) || 0)
+            }
             const sessionAvg = Object.values(prices).reduce((s, price) => s + (parseFloat(price) || 0), 0) / Object.keys(prices).length
             return sum + (sessionAvg || 0)
           }, 0)
           averagePrice = Math.round(totalPrice / sessions.length)
+          // Get minimum 15-minute price
+          if (all15MinPrices.length > 0) {
+            min15MinPrice = Math.min(...all15MinPrices)
+          }
         }
 
         let averageRating = 5.0
@@ -93,6 +103,7 @@ export default async function CategoryPage({ params }) {
           name: `${expert.firstName || ''} ${expert.lastName || ''}`.trim() || expert.username,
           sessionsCount: sessions.length,
           averagePrice: averagePrice,
+          min15MinPrice: min15MinPrice,
           averageRating: averageRating,
           categories: [...new Set(sessions.flatMap(s => s.categories || [s.category].filter(Boolean)))],
           sessionTypes: [...new Set(sessions.map(s => s.type))],
@@ -193,7 +204,7 @@ export default async function CategoryPage({ params }) {
                 <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'var(--font-playfair)' }}>
                   {categoryInfo.title}
                 </h1>
-                <p className="text-gray-600 text-lg" style={{ fontFamily: 'var(--font-switzer)' }}>
+                <p className="text-gray-600 text-lg">
                   {categoryInfo.description}
                 </p>
               </div>
@@ -216,16 +227,16 @@ export default async function CategoryPage({ params }) {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {experts.map((expert) => (
               <Link key={expert.id} href={`/marketplace/${expert.username}`}>
-                <Card className="group hover:scale-105 transition-transform duration-300 hover:border-gray-200 cursor-pointer h-full overflow-hidden rounded-xl py-0">
+                <Card className="group hover:scale-105 transition-transform duration-300 cursor-pointer h-full overflow-hidden rounded-xl py-0 border-0 !shadow-none">
                   <CardContent className="p-0">
-                    <div className="relative">
+                    <div className="relative rounded-t-xl overflow-hidden">
                       <NextImage
                         src={expert.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=256&fit=crop&crop=face"}
                         alt={expert.name}
                         width={400}
                         height={256}
                         quality={100}
-                        className="w-full h-64 object-cover"
+                        className="w-full h-64 object-cover rounded-t-xl"
                         style={{ objectPosition: 'center top' }}
                       />
                       {expert.topAdvisor === "true" && (
@@ -236,7 +247,7 @@ export default async function CategoryPage({ params }) {
                       )}
                     </div>
           
-                    <div className="p-4">
+                    <div className="p-2">
                       <div className="flex items-start justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <h3 className="font-bold text-gray-900 text-2xl leading-tight" style={{ fontFamily: 'var(--font-playfair)' }}>{expert.name}</h3>
@@ -246,26 +257,22 @@ export default async function CategoryPage({ params }) {
                             </svg>
                           )}
                         </div>
-                        <div className="flex items-center bg-yellow-50 px-2 py-1 rounded-full">
+                        <div className="flex items-center">
                           <Star className="w-4 h-4 text-yellow-500 mr-1 fill-current" />
-                          <span className="text-gray-900 text-sm font-semibold" style={{ fontFamily: 'var(--font-switzer)' }}>{expert.averageRating}</span>
+                          <span className="text-gray-900 text-sm font-semibold">{(expert.averageRating || 5.0).toFixed(1)}</span>
                         </div>
                       </div>
                           
-                      <p className="text-gray-700 text-xs leading-relaxed mb-1" style={{ fontFamily: 'var(--font-switzer)' }}>
+                      <p className="text-gray-700 text-xs leading-relaxed line-clamp-2 mb-1">
                         {expert.bio || `${expert.title || 'Expert Advisor'}${expert.company ? ` at ${expert.company}` : ''}`}
                       </p>
                       
-                      <p className="text-gray-600 text-xs leading-relaxed mb-2 line-clamp-2" style={{ fontFamily: 'var(--font-switzer)' }}>
-                        {expert.aboutMe || 'Professional advisor with extensive experience in their field.'}
-                      </p>
-
-                      <div className="flex items-baseline justify-between">
-                        <div>
-                          <span className="text-gray-900 font-bold text-2xl">${expert.averagePrice || 100}</span>
-                          <span className="text-gray-500 text-xs ml-1" style={{ fontFamily: 'var(--font-switzer)' }}>per 30 minute session</span>
+                        <div className="flex items-baseline justify-between">
+                          <div>
+                            <span className="text-gray-900 font-bold text-2xl">${expert.min15MinPrice || expert.averagePrice || 100}</span>
+                            <span className="text-gray-500 text-xs ml-1">Starting from</span>
+                          </div>
                         </div>
-                      </div>
                     </div>
                   </CardContent>
                 </Card>

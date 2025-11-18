@@ -18,7 +18,9 @@ export async function POST(request) {
       startTime, 
       endTime, 
       duration, 
-      expertUsername 
+      expertUsername,
+      learnerTimezone,
+      expertTimezone
     } = body
 
     // Use the new booking action
@@ -28,7 +30,9 @@ export async function POST(request) {
       startTime,
       endTime,
       duration,
-      expertUsername
+      expertUsername,
+      learnerTimezone,
+      expertTimezone
     })
 
     if (!result.success) {

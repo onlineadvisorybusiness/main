@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Calendar, Clock, User, Video, Phone, MapPin, Filter, Search, MoreVertical, ChevronDown, Plus, TrendingUp, Users, CheckCircle, XCircle, AlertCircle, X, Briefcase, MessageSquare, Target, Lightbulb, BookOpen, Zap, ClipboardPenLine, Loader2, DollarSign, Euro, PoundSterling, JapaneseYen, IndianRupee, RussianRuble, BadgeTurkishLira, SwissFranc} from 'lucide-react'
+import { TimezoneSelect } from '@/components/ui/timezone-select'
+import { Calendar, Clock, User, Video, Phone, MapPin, Filter, Search, MoreVertical, ChevronDown, Plus, TrendingUp, Users, CheckCircle, XCircle, AlertCircle, X, Briefcase, MessageSquare, Target, Lightbulb, BookOpen, Zap, ClipboardPenLine, Loader2, DollarSign, Save} from 'lucide-react'
+import { formatTimezoneLabel, getCurrentTimeInTimezone } from '@/lib/timezone'
 import { useToast } from '@/hooks/use-toast'
 import { useSearchParams } from 'next/navigation'
 
@@ -125,8 +127,8 @@ export default function ExpertsSessions({ user }) {
   }
   
   const [formData, setFormData] = useState({
-    eventName: '',
-    type: '',
+    eventName: 'Book a 1:1 Video Call',
+    type: 'one-on-one',
     platform: '',
     categories: [],
     prices: {
@@ -135,10 +137,14 @@ export default function ExpertsSessions({ user }) {
       '60': ''
     },
     currency: 'USD',
-    advicePoints: ['', '', '', '', '', '']
+    advicePoints: ['', '', '', '', '', ''],
+    timezone: user?.timezone || 'UTC'
   })
 
   const handleInputChange = (field, value) => {
+    if (field === 'eventName' || field === 'type' || field === 'currency') {
+      return
+    }
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -166,13 +172,39 @@ export default function ExpertsSessions({ user }) {
   }
 
   const handlePriceChange = (duration, value) => {
-    setFormData(prev => ({
-      ...prev,
-      prices: {
-        ...prev.prices,
-        [duration]: value
+    // Allow empty string or numeric values only (digits and decimal point)
+    // The regex pattern ensures only numbers are allowed
+    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+      setFormData(prev => ({
+        ...prev,
+        prices: {
+          ...prev.prices,
+          [duration]: value
+        }
+      }))
+    }
+  }
+  
+  const handlePriceBlur = (duration, value) => {
+    // Validate minimum price on blur (when user leaves the field)
+    if (value && value.trim() !== '') {
+      const numValue = parseFloat(value)
+      if (!isNaN(numValue) && numValue < 20) {
+        toast({
+          title: "Minimum Price Required",
+          description: "Price must be at least $20 for any duration",
+          variant: "destructive"
+        })
+        // Clear the invalid value
+        setFormData(prev => ({
+          ...prev,
+          prices: {
+            ...prev.prices,
+            [duration]: ''
+          }
+        }))
       }
-    }))
+    }
   }
 
   const handleAdvicePointChange = (index, value) => {
@@ -182,34 +214,75 @@ export default function ExpertsSessions({ user }) {
     }))
   }
 
-  const fetchSessions = async () => {
+  const fetchSessions = async (retryCount = 0) => {
+    const MAX_RETRIES = 3
+    const RETRY_DELAY = 1000 // 1 second
+    
+    let timeoutId = null
+    const controller = new AbortController()
+    
     try {
       setIsLoadingSessions(true)
       
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 3000) // 3 second timeout
+      timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
       
       const response = await fetch('/api/sessions', {
-        signal: controller.signal
+        signal: controller.signal,
+        cache: 'no-store' // Prevent caching issues
       })
+      
+      if (timeoutId) clearTimeout(timeoutId)
+      
       const result = await response.json()
-      
-      clearTimeout(timeoutId)
-      
       
       if (response.ok && result.success) {
         setSessions(result.sessions || [])
+        setIsLoadingSessions(false)
       } else {
-        setSessions([])
+        // If we have retries left, retry
+        if (retryCount < MAX_RETRIES) {
+          console.warn(`⚠️ Failed to fetch sessions, retrying... (${retryCount + 1}/${MAX_RETRIES})`)
+          setTimeout(() => {
+            fetchSessions(retryCount + 1)
+          }, RETRY_DELAY * (retryCount + 1)) // Exponential backoff
+        } else {
+          setSessions([])
+          setIsLoadingSessions(false)
+          toast({
+            title: "Failed to Load Sessions",
+            description: result.error || "Unable to load sessions. Please try refreshing the page.",
+            variant: "destructive"
+          })
+        }
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
-        setSessions([])
+      if (timeoutId) clearTimeout(timeoutId)
+      
+      // If we have retries left and it's not an abort error, retry
+      if (error.name !== 'AbortError' && retryCount < MAX_RETRIES) {
+        console.warn(`⚠️ Error fetching sessions, retrying... (${retryCount + 1}/${MAX_RETRIES})`, error)
+        setTimeout(() => {
+          fetchSessions(retryCount + 1)
+        }, RETRY_DELAY * (retryCount + 1)) // Exponential backoff
       } else {
         setSessions([])
+        setIsLoadingSessions(false)
+        
+        if (error.name === 'AbortError') {
+          toast({
+            title: "Request Timeout",
+            description: "The request took too long. Please try again.",
+            variant: "destructive"
+          })
+        } else {
+          console.error('❌ Error fetching sessions:', error)
+          toast({
+            title: "Connection Error",
+            description: "Unable to connect to the server. Please check your internet connection and try again.",
+            variant: "destructive"
+          })
+        }
       }
-    } finally {
-      setIsLoadingSessions(false)
     }
   }
 
@@ -217,16 +290,6 @@ export default function ExpertsSessions({ user }) {
     fetchSessions()
   }, [])
 
-  const currencies = [
-    { code: 'USD', name: 'US Dollar', icon: DollarSign },
-    { code: 'EUR', name: 'Euro', icon: Euro },
-    { code: 'GBP', name: 'British Pound', icon: PoundSterling },
-    { code: 'JPY', name: 'Japanese Yen', icon: JapaneseYen },
-    { code: 'INR', name: 'Indian Rupee', icon: IndianRupee },
-    { code: 'RUB', name: 'Russian Ruble', icon: RussianRuble },
-    { code: 'TRY', name: 'Turkish Lira', icon: BadgeTurkishLira },
-    { code: 'CHF', name: 'Swiss Franc', icon: SwissFranc },
-  ]
 
   const isFormValid = () => {
       if (!formData.eventName || !formData.type || 
@@ -239,6 +302,16 @@ export default function ExpertsSessions({ user }) {
       return false
       }
 
+      // Validate minimum price of $20
+      const pricesBelowMinimum = Object.entries(formData.prices).some(([duration, price]) => {
+        if (!price || price.trim() === '') return false
+        const numPrice = parseFloat(price)
+        return numPrice < 20
+      })
+      if (pricesBelowMinimum) {
+        return false
+      }
+
       const emptyAdvicePoints = formData.advicePoints.filter(point => !point.trim())
       if (emptyAdvicePoints.length > 0) {
       return false
@@ -249,11 +322,26 @@ export default function ExpertsSessions({ user }) {
 
   const handleCreateSession = async () => {
     if (!isFormValid()) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
-        variant: "destructive"
+      // Check for specific validation errors
+      const pricesBelowMinimum = Object.entries(formData.prices).some(([duration, price]) => {
+        if (!price || price.trim() === '') return false
+        const numPrice = parseFloat(price)
+        return numPrice < 50
       })
+      
+      if (pricesBelowMinimum) {
+        toast({
+          title: "Minimum Price Required",
+          description: "All prices must be at least $20 for any duration",
+          variant: "destructive"
+        })
+      } else {
+        toast({
+          title: "Validation Error",
+          description: "Please fill in all required fields",
+          variant: "destructive"
+        })
+      }
       return
     }
 
@@ -267,8 +355,9 @@ export default function ExpertsSessions({ user }) {
         platform: formData.platform,
         categories: formData.categories,  
         prices: formData.prices, 
-        currency: formData.currency,
-        advicePoints: formData.advicePoints
+        currency: 'USD',
+        advicePoints: formData.advicePoints,
+        timezone: formData.timezone || user?.timezone || 'UTC'
       }
       
 
@@ -297,8 +386,8 @@ export default function ExpertsSessions({ user }) {
       
       setShowCreateForm(false)
       setFormData({
-        eventName: '',
-        type: '',
+        eventName: 'Book a 1:1 Video Call',
+        type: 'one-on-one',
         platform: '',
         categories: [],
         prices: {
@@ -307,7 +396,8 @@ export default function ExpertsSessions({ user }) {
           '60': ''
         },
         currency: 'USD',
-        advicePoints: ['', '', '', '', '', '']
+        advicePoints: ['', '', '', '', '', ''],
+        timezone: user?.timezone || 'UTC'
       })
 
     } catch (error) {
@@ -408,13 +498,14 @@ export default function ExpertsSessions({ user }) {
   const handleEditSession = (session) => {
     setEditingSession(session)
     setFormData({
-      eventName: session.eventName,
-      type: session.type,
+      eventName: 'Book a 1:1 Video Call',
+      type: 'one-on-one',
       platform: session.platform,
       categories: session.categories || [session.category].filter(Boolean), 
       prices: session.prices,
-      currency: session.currency,
-      advicePoints: session.advicePoints
+      currency: 'USD',
+      advicePoints: session.advicePoints,
+      timezone: session.timezone || user?.timezone || 'UTC'
     })
     setShowEditForm(true)
     setShowCreateForm(false)
@@ -422,11 +513,26 @@ export default function ExpertsSessions({ user }) {
 
   const handleUpdateSession = async () => {
     if (!isFormValid()) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
-        variant: "destructive"
+      // Check for specific validation errors
+      const pricesBelowMinimum = Object.entries(formData.prices).some(([duration, price]) => {
+        if (!price || price.trim() === '') return false
+        const numPrice = parseFloat(price)
+        return numPrice < 50
       })
+      
+      if (pricesBelowMinimum) {
+        toast({
+          title: "Minimum Price Required",
+          description: "All prices must be at least $20 for any duration",
+          variant: "destructive"
+        })
+      } else {
+        toast({
+          title: "Validation Error",
+          description: "Please fill in all required fields",
+          variant: "destructive"
+        })
+      }
       return
     }
 
@@ -437,10 +543,11 @@ export default function ExpertsSessions({ user }) {
         eventName: formData.eventName,
         type: formData.type,
         platform: formData.platform,
-        categories: formData.categories,
-        prices: formData.prices,
-        currency: formData.currency,
-        advicePoints: formData.advicePoints
+        categories: formData.categories,  
+        prices: formData.prices, 
+        currency: 'USD',
+        advicePoints: formData.advicePoints,
+        timezone: formData.timezone || user?.timezone || 'UTC'
       }
       
       const response = await fetch(`/api/sessions/${editingSession.id}`, {
@@ -475,13 +582,14 @@ export default function ExpertsSessions({ user }) {
       
       // Reset form
     setFormData({
-      eventName: '',
-      type: '',
+      eventName: 'Book a 1:1 Video Call',
+      type: 'one-on-one',
       platform: '',
       categories: [],
         prices: { '15': '', '30': '', '60': '' },
         currency: 'USD',
-        advicePoints: ['', '', '', '', '', '']
+        advicePoints: ['', '', '', '', '', ''],
+        timezone: user?.timezone || 'UTC'
       })
     } catch (error) {
       toast({
@@ -499,8 +607,8 @@ export default function ExpertsSessions({ user }) {
     setShowEditForm(false)
     setEditingSession(null)
     setFormData({
-      eventName: '',
-      type: '',
+      eventName: 'Book a 1:1 Video Call',
+      type: 'one-on-one',
       platform: '',
       categories: [],
       prices: {
@@ -594,7 +702,7 @@ export default function ExpertsSessions({ user }) {
               onClick={() => {  
                 setShowCreateForm(true)
               }}
-              className="bg-gradient-to-r from-slate-700 to-gray-800 hover:from-slate-800 hover:to-gray-900 text-white px-8 py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2 group"
+              className="bg-gray-800 hover:bg-gray-900 text-white px-8 py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2 group"
             >
               <Plus className="h-5 w-5 group-hover:rotate-90 transition-transform duration-300" />
               Create Session
@@ -659,18 +767,23 @@ export default function ExpertsSessions({ user }) {
                     </Label>
                     <Input
                       id="eventName"
-                      placeholder="Enter session title"
-                      value={formData.eventName}
-                      onChange={(e) => handleInputChange('eventName', e.target.value)}
-                      className="w-full"
+                      value="Book a 1:1 Video Call"
+                      disabled
+                      readOnly
+                      className="w-full bg-gray-100 cursor-not-allowed"
                     />
                   </div>
 
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700"> Session Type *</Label>
-                    <Select value={formData.type} onValueChange={(value) => handleInputChange('type', value)}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select type" />
+                    <Select value="one-on-one" disabled>
+                      <SelectTrigger className="w-full bg-gray-100 cursor-not-allowed">
+                        <SelectValue>
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4" />
+                            One-on-One Session
+                          </div>
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="one-on-one">
@@ -798,93 +911,68 @@ export default function ExpertsSessions({ user }) {
                     <div className="space-y-3">
                       <div className="flex gap-2 items-center w-full">
                         <Label className="text-sm text-slate-600 w-20 flex-shrink-0">15 min:</Label>
-                        <Input
-                          type="number"
-                          placeholder="0"
-                          value={formData.prices['15']}
-                          onChange={(e) => handlePriceChange('15', e.target.value)}
-                          className="flex-1"
-                        />
-                        <Select value={formData.currency} onValueChange={(value) => handleInputChange('currency', value)}>
-                          <SelectTrigger className="w-26 flex-shrink-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {currencies.map((currency) => {
-                              const IconComponent = currency.icon
-                              return (
-                                <SelectItem key={currency.code} value={currency.code}>
-                              <div className="flex items-center gap-2">
-                                    <IconComponent className="h-4 w-4" />
-                                    {currency.code}
-                              </div>
-                            </SelectItem>
-                              )
-                            })}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex-1 relative">
+                          <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                          <Input
+                            type="number"
+                            placeholder="Minimum 20"
+                            min="20"
+                            step="1"
+                            value={formData.prices['15']}
+                            onChange={(e) => handlePriceChange('15', e.target.value)}
+                            onBlur={(e) => handlePriceBlur('15', e.target.value)}
+                            className="pl-9"
+                          />
+                        </div>
                       </div>
                       
                         <div className="flex gap-2 items-center w-full">
                           <Label className="text-sm text-slate-600 w-20 flex-shrink-0">30 min:</Label>
-                          <Input
-                            type="number"
-                            placeholder="0"
-                            value={formData.prices['30']}
-                            onChange={(e) => handlePriceChange('30', e.target.value)}
-                            className="flex-1"
-                          />
-                          <Select value={formData.currency} onValueChange={(value) => handleInputChange('currency', value)}>
-                            <SelectTrigger className="w-26 flex-shrink-0">
-                              <SelectValue />
-                            </SelectTrigger>
-                          <SelectContent>
-                            {currencies.map((currency) => {
-                              const IconComponent = currency.icon
-                              return (
-                                <SelectItem key={currency.code} value={currency.code}>
-                              <div className="flex items-center gap-2">
-                                    <IconComponent className="h-4 w-4" />
-                                    {currency.code}
-                              </div>
-                            </SelectItem>
-                              )
-                            })}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
+                          <div className="flex-1 relative">
+                            <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                            <Input
+                              type="number"
+                              placeholder="Minimum 20"
+                              min="20"
+                              step="1"
+                              value={formData.prices['30']}
+                              onChange={(e) => handlePriceChange('30', e.target.value)}
+                              onBlur={(e) => handlePriceBlur('30', e.target.value)}
+                              className="pl-9"
+                            />
+                          </div>
+                        </div>                      
 
                         <div className="flex gap-2 items-center w-full">
                           <Label className="text-sm text-slate-600 w-20 flex-shrink-0">1 hour:</Label>
-                          <Input
-                            type="number"
-                            placeholder="0"
-                            value={formData.prices['60']}
-                            onChange={(e) => handlePriceChange('60', e.target.value)}
-                            className="flex-1"
-                          />
-                          <Select value={formData.currency} onValueChange={(value) => handleInputChange('currency', value)}>
-                            <SelectTrigger className="w-26 flex-shrink-0">
-                              <SelectValue />
-                            </SelectTrigger>
-                              <SelectContent>
-                            {currencies.map((currency) => {
-                              const IconComponent = currency.icon
-                              return (
-                                <SelectItem key={currency.code} value={currency.code}>
-                              <div className="flex items-center gap-2">
-                                    <IconComponent className="h-4 w-4" />
-                                    {currency.code}
-                              </div>
-                            </SelectItem>
-                              )
-                            })}
-                          </SelectContent>
-                        </Select> 
-                      </div>
+                          <div className="flex-1 relative">
+                            <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                            <Input
+                              type="number"
+                              placeholder="Minimum 20"
+                              min="20"
+                              step="1"
+                              value={formData.prices['60']}
+                              onChange={(e) => handlePriceChange('60', e.target.value)}
+                              onBlur={(e) => handlePriceBlur('60', e.target.value)}
+                              className="pl-9"
+                            />
+                          </div>
+                        </div>
                     </div>
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Timezone *</Label>
+                  <TimezoneSelect 
+                    value={formData.timezone} 
+                    onValueChange={(value) => handleInputChange('timezone', value)}
+                    placeholder="Select your timezone"
+                  />
+                  <p className="text-xs text-slate-500">
+                    This timezone will be used for your session availability and bookings
+                  </p>
                 </div>
           
                 <div className="space-y-4">
@@ -920,7 +1008,7 @@ export default function ExpertsSessions({ user }) {
                   <Button
                     onClick={showEditForm ? handleUpdateSession : handleCreateSession}
                     disabled={!isFormValid() || isCreating}
-                    className="flex-1 w-1/2 bg-slate-700 hover:bg-slate-800 text-white disabled:bg-slate-400 disabled:cursor-not-allowed"
+                    className="flex-1 w-1/2 bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-400 disabled:cursor-not-allowed"
                   >
                     {isCreating ? (
                       <>
@@ -929,7 +1017,7 @@ export default function ExpertsSessions({ user }) {
                       </>
                     ) : (
                       <>
-                    <Plus className="h-4 w-4" />
+                    <Save className="h-4 w-4" />
                         {showEditForm ? 'Update Session' : 'Create Session'}
                       </>
                     )}
@@ -1076,8 +1164,8 @@ export default function ExpertsSessions({ user }) {
                     <div className="flex items-center gap-3">
                       <div className="h-10 bg-slate-200 rounded w-24"></div>
                       <div className="h-10 bg-slate-200 rounded w-28"></div>
-                            </div>
-                            </div>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1095,29 +1183,57 @@ export default function ExpertsSessions({ user }) {
                           {session.status !== 'active' && getStatusBadge(session.status)}
                           </div>
                           
-                        <div className="flex items-center gap-4 text-sm text-slate-600">
+                        <div className="flex items-center gap-4 text-sm text-slate-600 flex-wrap">
                           <div className="flex items-center gap-2">
                             {getTypeIcon(session.type)}
-                            <span className="capitalize">{session.type.replace('-', ' ')}</span>
-                            </div>
+                            <span className="capitalize">{session.type.replace('-', ' ')} Session</span>
+                          </div>
                           <div className="flex items-center gap-2">
-                            <Video className="h-4 w-4" />
+                            {session.platform === 'google-meet' ? (
+                              <NextImage src="/google-meet.png" alt="Google Meet" width={16} height={16} className="object-contain" />
+                            ) : session.platform === 'zoom' ? (
+                              <NextImage src="/zoom-icon.png" alt="Zoom" width={16} height={16} className="object-contain" />
+                            ) : (
+                              <Video className="h-4 w-4" />
+                            )}
                             <span className="capitalize">{session.platform.replace('-', ' ')}</span>
-                            </div>
+                          </div>
                           <div className="flex items-center gap-2">
                             <Briefcase className="h-4 w-4" />
-                            <div className="flex flex-wrap gap-1">
-                              {(session.categories || [session.category].filter(Boolean)).map((category, index) => (
-                                <span key={index} className="capitalize text-xs bg-slate-100 px-2 py-1 rounded">
-                                  {category}
-                                </span>
-                              ))}
-                          </div>
+                            <div className="flex flex-wrap items-center gap-1">
+                              {(() => {
+                                const categoryMap = {
+                                  'business': 'Business Strategy',
+                                  'career': 'Career Development',
+                                  'technology': 'Technology',
+                                  'marketing': 'Marketing',
+                                  'finance': 'Finance',
+                                  'education': 'Education'
+                                }
+                                const categories = session.categories || [session.category].filter(Boolean)
+                                return categories.map((category, index, array) => {
+                                  const displayName = categoryMap[category] || category
+                                  return (
+                                    <span key={index} className="capitalize text-sm text-slate-600">
+                                      {displayName}{index < array.length - 1 ? ',' : ''}
+                                    </span>
+                                  )
+                                })
+                              })()}
                             </div>
-                            </div>
                           </div>
+                          {session.timezone && (
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4" />
+                              <span className="text-sm text-slate-600">
+                                {formatTimezoneLabel(session.timezone, true)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                           
-                      <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                      <div className="">
                         <h4 className="text-sm font-medium text-slate-700 mb-3">Session Pricing</h4>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           {(() => {
@@ -1143,16 +1259,19 @@ export default function ExpertsSessions({ user }) {
                             }
                             
                             return priceEntries.map(([duration, price]) => (
-                              <div key={duration} className="bg-white rounded-lg p-3 border border-slate-200 text-center">
-                                <p className="text-lg font-bold text-slate-900">{session.currency} {price}</p>
-                                <p className="text-xs text-slate-500">per {duration} min</p>
+                              <div key={duration} className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm text-center">
+                                <p className="flex items-center justify-center gap-0 text-xl font-bold text-slate-900 mb-1">
+                                  <DollarSign className="h-5 w-5 text-slate-900" />
+                                  <span className="text-2xl font-bold text-slate-900">{price}</span>
+                                </p>
+                                <span className="text-xs text-slate-500">per {duration} min</span>
                             </div>
                             ))
                           })()}
                             </div>
                           </div>
                           
-                      <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                      <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                         <h4 className="text-sm font-medium text-slate-700 mb-3">What You'll Get Advice On</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                           {session.advicePoints?.map((point, index) => (
@@ -1167,7 +1286,7 @@ export default function ExpertsSessions({ user }) {
                         </div>
                         
                       <div className="text-xs text-slate-500">
-                        Created: {formatDate(session.createdAt)}
+                        Created on: {formatDate(session.createdAt)}
                       </div>
                     </div>
                     

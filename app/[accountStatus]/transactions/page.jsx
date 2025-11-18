@@ -578,13 +578,12 @@ export default function TransactionsPage({ params }) {
                           </TableCell>
                           <TableCell className="px-4 py-4">
                             <div className="space-y-2">
-                              <div className={`font-semibold text-lg ${
+                              <div className={`flex items-center gap-1 font-semibold text-lg ${
                                 transaction.amount < 0 ? 'text-red-600' : 'text-emerald-600'
                               }`}>
-                                {transaction.amount < 0 ? '-' : ''}${Math.abs(transaction.amount).toFixed(2)}
-                              </div>
-                              <div className="text-xs text-slate-500 font-medium">
-                                {transaction.currency}
+                                {transaction.amount < 0 ? '-' : ''}
+                                <DollarSign className="h-4 w-4" />
+                                {Math.abs(transaction.amount).toFixed(2)}
                               </div>
                             </div>
                           </TableCell>
@@ -761,8 +760,8 @@ export default function TransactionsPage({ params }) {
                                         </div>
                                         <div className="flex justify-between items-center py-3 bg-slate-50 rounded-lg px-3">
                                           <span className="text-slate-900 font-semibold">Total Amount:</span>
-                                          <span className="text-lg font-bold text-slate-900">
-                                            ${transaction.amount.toFixed(2)} {transaction.currency}
+                                          <span className="flex items-center gap-1 text-lg font-bold text-slate-900">
+                                            <DollarSign className="h-4 w-4" /> {transaction.amount.toFixed(2)}
                                           </span>
                                         </div>
                                       </div>

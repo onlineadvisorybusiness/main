@@ -1,15 +1,15 @@
-import { Playfair_Display } from "next/font/google";
+import { Playfair_Display, Inter } from "next/font/google";
 import { ClerkProvider } from '@clerk/nextjs';
 import "./globals.css";
 import { Header } from "@/components/Header";
 import { Toaster } from "@/components/ui/sonner";
+import { SmoothScroll } from "@/components/SmoothScroll";
 
-const switzer = {
-  variable: "--font-switzer",
-  style: {
-    fontFamily: "Switzer, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  },
-};
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  display: "swap",
+});
 
 const playfair = Playfair_Display({
   variable: "--font-playfair",
@@ -38,14 +38,16 @@ export default function RootLayout({ children }) {
       afterSignInUrl="/marketplace"
       afterSignUpUrl="/marketplace"
     >
-      <html lang="en">
+      <html lang="en" className="smooth-scroll">
         <body
-          className={`${switzer.variable} ${playfair.variable} ${caslonCondensed.variable} antialiased`}
+          className={`${inter.variable} ${playfair.variable} ${caslonCondensed.variable} antialiased`}
           suppressHydrationWarning={true}
         >
-          <Header />
-          {children}
-          <Toaster />
+          <SmoothScroll>
+            <Header />
+            {children}
+            <Toaster />
+          </SmoothScroll>
         </body>
       </html>
     </ClerkProvider>

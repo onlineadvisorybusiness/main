@@ -34,6 +34,9 @@ model User {
   isVerified    String?  @default("false") // Verification status
   topAdvisor    String?  @default("false") // Top advisor status
   
+  // Timezone
+  timezone      String?  @default("UTC") // User's timezone (IANA timezone name)
+  
   // Google Calendar integration
   googleCalendarTokens    String? // JSON string of Google Calendar tokens
   googleCalendarConnected Boolean @default(false) // Whether Google Calendar is connected
@@ -91,6 +94,7 @@ model Session {
   status        String   @default("draft") // "draft", "published", "active", "archived"
   meetingLink   String?  // Generated meeting link
   meetingId     String?  // Platform-specific meeting ID
+  timezone      String?  @default("UTC") // Expert's timezone when creating session (IANA timezone name)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -158,6 +162,8 @@ model Booking {
   orderId         String?  // Order/transaction ID
   accountType     String   // User's account type (learner, expert)
   meetingLink     String?  // Generated meeting link
+  learnerTimezone String?  // Learner's timezone when booking (IANA timezone name)
+  expertTimezone  String?  // Expert's timezone when booking (IANA timezone name)
   status          String   @default("pending") // pending, confirmed, completed, cancelled
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

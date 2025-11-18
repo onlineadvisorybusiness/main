@@ -13,6 +13,8 @@ const bookingSchema = z.object({
   endTime: z.string().min(1, 'End time is required'),
   duration: z.number().min(15).max(120, 'Duration must be between 15 and 120 minutes'),
   expertUsername: z.string().min(1, 'Expert username is required'),
+  learnerTimezone: z.string().optional(),
+  expertTimezone: z.string().optional(),
 })
 
 const getGoogleCalendarClient = async (accessToken) => {
@@ -188,16 +190,23 @@ async function getZoomAccessToken() {
 }
 
 
-async function createZoomMeeting(bookingData, event) {
+async function createZoomMeeting(bookingData, event, timezone = 'UTC') {
   try {
     
     const accessToken = await getZoomAccessToken()
     
-    const startTime = new Date(bookingData.startTime)
-    const endTime = new Date(bookingData.endTime)
-    const durationMinutes = Math.round((endTime - startTime) / 60000)
+    // Parse start and end times
+    const [datePart, timePart] = bookingData.startTime.split('T')
+    const [startHour, startMin] = timePart.split(':').map(Number)
+    const [endHour, endMin] = bookingData.endTime.split('T')[1].split(':').map(Number)
     
-    const formattedStartTime = startTime.toISOString()
+    const [year, month, day] = datePart.split('-').map(Number)
+    const startDateTime = new Date(year, month - 1, day, startHour, startMin)
+    const endDateTime = new Date(year, month - 1, day, endHour, endMin)
+    const durationMinutes = Math.round((endDateTime - startDateTime) / 60000)
+    
+    // Format start time in ISO format
+    const formattedStartTime = startDateTime.toISOString()
     
     const response = await fetch("https://api.zoom.us/v2/users/me/meetings", {
       method: "POST",
@@ -210,7 +219,7 @@ async function createZoomMeeting(bookingData, event) {
         type: 2,
           start_time: formattedStartTime,
           duration: durationMinutes,
-          timezone: "Asia/Kolkata", 
+          timezone: timezone || "UTC", 
           agenda: bookingData.additionalInfo || "No additional info provided.",
         settings: {
           host_video: true,
@@ -397,6 +406,9 @@ export async function createBooking(bookingData) {
       throw new Error('Invalid duration')
     }
 
+    const learnerTimezone = validatedData.learnerTimezone || user.timezone || 'UTC'
+    const expertTimezone = validatedData.expertTimezone || expert.timezone || session.timezone || 'UTC'
+
     let meetingLink = null
     let meetingId = null
     let meetingPassword = null
@@ -406,18 +418,20 @@ export async function createBooking(bookingData) {
         const [startHour, startMin] = validatedData.startTime.split(':').map(Number)
         const startDateTime = new Date(year, month - 1, day, startHour, startMin)
         
-        const istStartTime = `${validatedData.date}T${validatedData.startTime}:00+05:30`
+        const startTimeISO = `${validatedData.date}T${validatedData.startTime}:00`
+        const endTimeISO = `${validatedData.date}T${validatedData.endTime}:00`
         
       const bookingData = {
         name: `${user.firstName} ${user.lastName}`,
-          startTime: istStartTime,
-        endTime: `${validatedData.date}T${validatedData.endTime}:00+05:30`,
+        startTime: startTimeISO,
+        endTime: endTimeISO,
+        timezone: expertTimezone,
         additionalInfo: `Session: ${session.eventName}`
       }
       const event = {
         title: session.eventName
       }
-      const zoomMeeting = await createZoomMeeting(bookingData, event)
+      const zoomMeeting = await createZoomMeeting(bookingData, event, expertTimezone)
       meetingLink = zoomMeeting.meetLink
         meetingId = zoomMeeting.meetingId
         meetingPassword = zoomMeeting.password
@@ -435,7 +449,7 @@ export async function createBooking(bookingData) {
     if (user.id === expert.id) {
       throw new Error('Cannot create booking: learner and expert cannot be the same user')
     }
-
+    
     const booking = await prisma.booking.create({
       data: {
         clerkId: userId,
@@ -450,6 +464,8 @@ export async function createBooking(bookingData) {
         amount: price,
         accountType: user.accountStatus,
         meetingLink: meetingLink,
+        learnerTimezone: learnerTimezone,
+        expertTimezone: expertTimezone,
         status: 'confirmed',
         learnerId: user.id,  // Ensure this is the learner (person making the booking)
         expertId: expert.id,  // Ensure this is the expert (session owner)

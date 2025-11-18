@@ -8,12 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Clock, Save, Plus, Trash2, Check, X, RefreshCw, Calendar, Settings, Users } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { timezones } from '@/lib/timezone'
 
 const generateTimeSlots = () => {
   const slots = []
   for (let hour = 0; hour <= 23; hour++) {
     for (let minute = 0; minute < 60; minute += 30) {
-      // Skip if it's past 23:30
       if (hour === 23 && minute > 30) break
       
       const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
@@ -28,13 +28,13 @@ const TIME_SLOTS = generateTimeSlots()
 const MAX_SLOTS_PER_DAY = 5
 
 const DAYS_OF_WEEK = [
-  { id: 0, name: 'Sunday', short: 'Sun' },
   { id: 1, name: 'Monday', short: 'Mon' },
   { id: 2, name: 'Tuesday', short: 'Tue' },
   { id: 3, name: 'Wednesday', short: 'Wed' },
   { id: 4, name: 'Thursday', short: 'Thu' },
   { id: 5, name: 'Friday', short: 'Fri' },
-  { id: 6, name: 'Saturday', short: 'Sat' }
+  { id: 6, name: 'Saturday', short: 'Sat' },
+  { id: 7, name: 'Sunday', short: 'Sun' },
 ]
 
 const formatTime = (time) => {
@@ -66,27 +66,38 @@ export default function ExpertAvailability() {
   const [saving, setSaving] = useState(false)
   const [selectedDay, setSelectedDay] = useState(1)
   const [newSlot, setNewSlot] = useState({ startTime: '', endTime: '' })
+  const [expertTimezone, setExpertTimezone] = useState('UTC')
   const { toast } = useToast()
 
   useEffect(() => {
     loadAvailabilities()
   }, [])
 
-  const loadAvailabilities = async () => {
+  const loadAvailabilities = async (retryCount = 0) => {
+    const MAX_RETRIES = 3
+    const RETRY_DELAY = 1000 // 1 second
+    
+    let timeoutId = null
+    const controller = new AbortController()
+    
     try {
       setLoading(true)
 
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000) 
+      timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
       
       const response = await fetch('/api/availability', {
-        signal: controller.signal
+        signal: controller.signal,
+        cache: 'no-store' // Prevent caching issues
       })
       
-      clearTimeout(timeoutId)
+      if (timeoutId) clearTimeout(timeoutId)
       
       if (response.ok) {
         const data = await response.json()
+        
+        console.log('🔍 [DEBUG] Full API Response:', JSON.stringify(data, null, 2))
+        console.log('🔍 [DEBUG] Expert timezone from API:', data.expert?.timezone)
+        console.log('🔍 [DEBUG] Availabilities count:', data.availabilities?.length || 0)
         
         const groupedAvailabilities = {}
         
@@ -97,8 +108,68 @@ export default function ExpertAvailability() {
           groupedAvailabilities[availability.dayOfWeek].push(availability)
         })
         
+        console.log('📊 [DEBUG] Grouped availabilities:', Object.keys(groupedAvailabilities).length, 'days')
         setAvailabilities(groupedAvailabilities)
+        
+        let timezoneToUse = null
+        
+        if (data.expert?.timezone && data.expert.timezone !== 'UTC') {
+          // Only use API timezone if it's not the default UTC
+          timezoneToUse = data.expert.timezone
+          console.log('✅ Setting expert timezone from API:', timezoneToUse)
+        } else {
+          // Try to get timezone from first availability slot if available
+          const firstAvailability = data.availabilities?.[0]
+          if (firstAvailability?.timezone) {
+            timezoneToUse = firstAvailability.timezone
+            console.log('📌 Using timezone from availability slot:', timezoneToUse)
+          } else if (data.expert?.timezone) {
+            // Use UTC only if explicitly set
+            timezoneToUse = data.expert.timezone
+            console.log('📌 Using timezone from API (UTC):', timezoneToUse)
+          }
+        }
+        
+        // If still no timezone, try to get from sessions
+        if (!timezoneToUse) {
+          try {
+            const sessionsResponse = await fetch('/api/sessions')
+            if (sessionsResponse.ok) {
+              const sessionsData = await sessionsResponse.json()
+              const activeSession = sessionsData.sessions?.find(s => s.status === 'published' || s.status === 'active')
+              if (activeSession?.timezone) {
+                timezoneToUse = activeSession.timezone
+                console.log('📌 Using timezone from active session:', timezoneToUse)
+              }
+            }
+          } catch (sessionError) {
+            console.warn('⚠️ Could not fetch sessions for timezone:', sessionError)
+          }
+        }
+        
+
+        const normalizeTimezone = (tz) => {
+          const mappings = {
+            'Asia/Calcutta': 'Asia/Kolkata' // Both are the same timezone, normalize to Asia/Kolkata
+          }
+          return mappings[tz] || tz
+        }
+        
+        if (timezoneToUse) {
+          // Normalize the timezone before setting it
+          const normalizedTimezone = normalizeTimezone(timezoneToUse)
+          console.log('✅ Final timezone to use (before normalization):', timezoneToUse)
+          console.log('✅ Final timezone to use (after normalization):', normalizedTimezone)
+          console.log('🔍 Looking for in timezones array:', timezones.find(tz => tz.value === normalizedTimezone))
+          setExpertTimezone(normalizedTimezone)
+        } else {
+          console.warn('⚠️ No timezone found, keeping default UTC')
+          setExpertTimezone('UTC') // Explicitly set UTC as fallback
+        }
+        setLoading(false)
       } else if (response.status === 401) {
+        // Don't retry on authentication errors
+        setLoading(false)
         toast({
           title: "Authentication Required",
           description: "Please sign in to manage your availability",
@@ -106,6 +177,8 @@ export default function ExpertAvailability() {
         })
         setAvailabilities({})
       } else if (response.status === 403) {
+        // Don't retry on authorization errors
+        setLoading(false)
         toast({
           title: "Access Denied",
           description: "Only experts can manage availability",
@@ -113,31 +186,51 @@ export default function ExpertAvailability() {
         })
         setAvailabilities({})
       } else {
-        const errorData = await response.json()
-        toast({
-          title: "Error",
-          description: errorData.error || "Failed to load availability data",
-          variant: "destructive"
-        })
-        setAvailabilities({})
+        // If we have retries left, retry for other errors
+        if (retryCount < MAX_RETRIES) {
+          console.warn(`⚠️ Failed to fetch availability, retrying... (${retryCount + 1}/${MAX_RETRIES})`)
+          setTimeout(() => {
+            loadAvailabilities(retryCount + 1)
+          }, RETRY_DELAY * (retryCount + 1)) // Exponential backoff
+        } else {
+          setAvailabilities({})
+          setLoading(false)
+          const errorData = await response.json().catch(() => ({}))
+          toast({
+            title: "Failed to Load Availability",
+            description: errorData.error || "Unable to load availability. Please try refreshing the page.",
+            variant: "destructive"
+          })
+        }
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
-        toast({
-          title: "Timeout",
-          description: "Request timed out. Please try again.",
-          variant: "destructive"
-        })
+      if (timeoutId) clearTimeout(timeoutId)
+      
+      // If we have retries left and it's not an abort error, retry
+      if (error.name !== 'AbortError' && retryCount < MAX_RETRIES) {
+        console.warn(`⚠️ Error fetching availability, retrying... (${retryCount + 1}/${MAX_RETRIES})`, error)
+        setTimeout(() => {
+          loadAvailabilities(retryCount + 1)
+        }, RETRY_DELAY * (retryCount + 1)) // Exponential backoff
       } else {
-        toast({
-          title: "Connection Error",
-          description: "Unable to connect to the server. Please check your internet connection.",
-          variant: "destructive"
-        })
+        setAvailabilities({})
+        setLoading(false)
+        
+        if (error.name === 'AbortError') {
+          toast({
+            title: "Request Timeout",
+            description: "The request took too long. Please try again.",
+            variant: "destructive"
+          })
+        } else {
+          console.error('❌ Error fetching availability:', error)
+          toast({
+            title: "Connection Error",
+            description: "Unable to connect to the server. Please check your internet connection and try again.",
+            variant: "destructive"
+          })
+        }
       }
-      setAvailabilities({})
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -339,8 +432,35 @@ export default function ExpertAvailability() {
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="p-6 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">Weekly Schedule</h2>
-            <p className="text-gray-600 mt-1">Select a day to manage your availability</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Weekly Schedule</h2>
+                <p className="text-gray-600 mt-1">Select a day to manage your availability</p>
+              </div>
+              {expertTimezone && (() => {
+                // Normalize timezone for display (e.g., Asia/Calcutta -> Asia/Kolkata)
+                const normalizeTimezone = (tz) => {
+                  const mappings = {
+                    'Asia/Calcutta': 'Asia/Kolkata'
+                  }
+                  return mappings[tz] || tz
+                }
+                
+                const normalizedTimezone = normalizeTimezone(expertTimezone)
+                const timezoneLabel = timezones.find(tz => tz.value === normalizedTimezone)?.label
+                
+                return (
+                  <div className="text-sm text-gray-600 flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    <span>
+                      Timezone: <span className="font-semibold text-gray-900">
+                        {timezoneLabel || normalizedTimezone}
+                      </span>
+                    </span>
+                  </div>
+                )
+              })()}
+            </div>
           </div>
           
           <div className="p-6">
@@ -358,13 +478,17 @@ export default function ExpertAvailability() {
                         className={`w-full p-3 rounded-lg text-left transition-colors justify-start h-auto ${
                           selectedDay === day.id
                             ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                            : ''
+                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
                         }`}
                       >
                         <div className="flex items-center justify-between w-full">
                           <div>
                             <div className="font-medium">{day.name}</div>
-                            <div className="text-sm text-white">
+                            <div className={`text-sm ${
+                              selectedDay === day.id 
+                                ? 'text-white' 
+                                : 'text-gray-600'
+                            }`}>
                               {getDaySlots(day.id).length}/{MAX_SLOTS_PER_DAY} slots
                             </div>
                           </div>
@@ -509,7 +633,7 @@ export default function ExpertAvailability() {
           </div>
         </div>
 
-      <div className="flex gap-4 mx-auto">
+      <div className="flex gap-4 mx-auto mt-4">
         <Button
           onClick={saveAvailabilities}
           disabled={saving}

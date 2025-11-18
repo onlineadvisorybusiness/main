@@ -22,7 +22,8 @@ export async function POST(request) {
       price,
       prices,
       currency,
-      advicePoints
+      advicePoints,
+      timezone
     } = body
     
     if (!eventName || !type || !platform || (!categories && !category) || !prices || !currency) {
@@ -108,6 +109,7 @@ export async function POST(request) {
       prices: prices,
       currency,
       advicePoints: advicePoints.map(point => point.trim()),
+      timezone: timezone || user.timezone || 'UTC',
       expertId: user.id,
       status: 'draft'
     }

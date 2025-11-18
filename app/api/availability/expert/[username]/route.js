@@ -19,7 +19,8 @@ export async function GET(request, { params }) {
         id: true,
         username: true,
         firstName: true,
-        lastName: true
+        lastName: true,
+        timezone: true
       }
     })
 
@@ -85,7 +86,8 @@ export async function GET(request, { params }) {
       expert: {
         id: expert.id,
         username: expert.username,
-        name: `${expert.firstName || ''} ${expert.lastName || ''}`.trim() || expert.username
+        name: `${expert.firstName || ''} ${expert.lastName || ''}`.trim() || expert.username,
+        timezone: expert.timezone || 'UTC'
       },
       availabilities: groupedAvailabilities,
       existingBookings: bookingsByDate

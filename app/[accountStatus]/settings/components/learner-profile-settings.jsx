@@ -357,7 +357,7 @@ export default function LearnerProfileSettings() {
                 <Label htmlFor="firstName">First Name</Label>
                 <Input
                   id="firstName"
-                  value={profileData.firstName}
+                  value={profileData.firstName || ''}
                   onChange={(e) => handleInputChange('firstName', e.target.value)}
                   placeholder="Enter your first name"
                 />
@@ -366,7 +366,7 @@ export default function LearnerProfileSettings() {
                 <Label htmlFor="lastName">Last Name</Label>
                 <Input
                   id="lastName"
-                  value={profileData.lastName}
+                  value={profileData.lastName || ''}
                   onChange={(e) => handleInputChange('lastName', e.target.value)}
                   placeholder="Enter your last name"
                 />
@@ -491,7 +491,7 @@ export default function LearnerProfileSettings() {
             onClick={saveProfile} 
             disabled={isSaving} 
             size="lg" 
-            className={`px-8 ${hasUnsavedChanges ? 'bg-orange-600 hover:bg-orange-700' : ''}`}
+            className={`px-8 ${hasUnsavedChanges ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
           >
             {isSaving ? (
               <>

@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { CalendarDays, Clock, DollarSign, TrendingUp, Users, Zap } from 'lucide-react'
 
-
 export default async function ViewEarningsPage({ params }) {
   const { userId } = await auth()
   if (!userId) {
@@ -194,6 +193,7 @@ export default async function ViewEarningsPage({ params }) {
           </CardContent>
         </Card>
       </div>
+
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Monthly Earnings Chart */}
@@ -400,11 +400,8 @@ export default async function ViewEarningsPage({ params }) {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-lg font-semibold text-green-600">
-                        ${booking.amount.toLocaleString()}
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        {booking.currency}
+                      <div className="flex items-center gap-1 text-lg font-semibold text-green-600">
+                        <DollarSign className="h-4 w-4 text-green-600 mt-1" /> {booking.amount.toLocaleString()}
                       </div>
                       <Badge variant="default" className="mt-1">
                         Completed

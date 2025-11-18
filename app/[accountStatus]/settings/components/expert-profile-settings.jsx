@@ -24,7 +24,14 @@ import {
   Calendar,
   MessageSquare,
   X,
-  Share2
+  Share2,
+  Linkedin,
+  Globe,
+  Image as ImageIcon,
+  AtSign,
+  Briefcase,
+  FileText,
+  UserCircle
 } from 'lucide-react'
 import Image from 'next/image'
 
@@ -46,7 +53,8 @@ export default function ExpertProfileSettings() {
     facebookUrl: '',
     twitterUrl: '',
     youtubeUrl: '',
-    websiteUrl: ''
+    websiteUrl: '',
+    reviews: []
   })
   
   const [reviews, setReviews] = useState([])
@@ -126,7 +134,15 @@ export default function ExpertProfileSettings() {
           position: user.unsafeMetadata?.position || '',
           company: user.unsafeMetadata?.company || '',
           bio: user.unsafeMetadata?.bio || '',
-          avatar: avatarUrl
+          avatar: avatarUrl,
+          linkedinUrl: user.unsafeMetadata?.linkedinUrl || '',
+          instagramUrl: user.unsafeMetadata?.instagramUrl || '',
+          facebookUrl: user.unsafeMetadata?.facebookUrl || '',
+          twitterUrl: user.unsafeMetadata?.twitterUrl || '',
+          youtubeUrl: user.unsafeMetadata?.youtubeUrl || '',
+          websiteUrl: user.unsafeMetadata?.websiteUrl || '',
+          reviews: user.unsafeMetadata?.reviews || [],
+          reviewsData: user.unsafeMetadata?.reviewsData || []
         })
         
         const userReviews = user.unsafeMetadata?.reviews || []
@@ -430,6 +446,7 @@ export default function ExpertProfileSettings() {
   return (
     <div className="container mx-auto max-w-5xl p-6">
       <div className="space-y-8">
+
         <div className="flex items-center justify-between">
           <div className="text-left">
             <h1 className="text-3xl font-bold text-gray-900">Account Settings</h1>
@@ -438,26 +455,36 @@ export default function ExpertProfileSettings() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {!isEditMode ? (
+            {isEditMode ? (
               <Button 
-                onClick={() => setIsEditMode(true)}
+                onClick={() => {
+                  console.log('🔍 [DEBUG] Edit Profile button clicked')
+                  setIsEditMode(true)
+                }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
               >
                 <User className="h-4 w-4 mr-2" />
                 Edit Profile
               </Button>
             ) : (
-              <Button 
-                onClick={() => {
-                  setIsEditMode(false)
-                  setHasUnsavedChanges(false)
-                }}
-                variant="outline"
-                className="px-6 py-2"
-              >
-                <X className="h-4 w-4 mr-2" />
-                Cancel
-              </Button>
+              <>
+                <Badge variant="outline" className="text-sm bg-green-50 text-green-700 border-green-300 px-3 py-1">
+                  ✓ Edit Mode Active
+                </Badge>
+                <Button 
+                  onClick={async () => {
+                    console.log('🔍 [DEBUG] Cancel button clicked')
+                    setIsEditMode(false)
+                    setHasUnsavedChanges(false)
+                    await loadProfileData()
+                  }}
+                  variant="outline"
+                  className="px-6 py-2"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -570,32 +597,48 @@ export default function ExpertProfileSettings() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="firstName" className="text-sm font-medium text-gray-700">First Name</Label>
-                <Input
-                  id="firstName"
-                  value={profileData.firstName}
-                  onChange={(e) => handleInputChange('firstName', e.target.value)}
-                  placeholder="Enter your first name"
-                  className="h-11"
-                  disabled={!isEditMode}
-                />
+                <Label htmlFor="firstName" className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <User className="h-4 w-4 text-gray-600 flex-shrink-0" />
+                  First Name
+                </Label>
+                {isEditMode ? (
+                  <Input
+                    id="firstName"
+                    value={profileData.firstName || ''}
+                    onChange={(e) => handleInputChange('firstName', e.target.value)}
+                    placeholder="Enter your first name"
+                    className="h-11"
+                  />
+                ) : (
+                  <div className="h-11 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 flex items-center">
+                    {profileData.firstName || 'Not set'}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName" className="text-sm font-medium text-gray-700">Last Name</Label>
-                <Input
-                  id="lastName"
-                  value={profileData.lastName}
-                  onChange={(e) => handleInputChange('lastName', e.target.value)}
-                  placeholder="Enter your last name"
-                  className="h-11"
-                  disabled={!isEditMode}
-                />
+                <Label htmlFor="lastName" className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <User className="h-4 w-4 text-gray-600 flex-shrink-0" />
+                  Last Name
+                </Label>
+                {isEditMode ? (
+                  <Input
+                    id="lastName"
+                    value={profileData.lastName || ''}
+                    onChange={(e) => handleInputChange('lastName', e.target.value)}
+                    placeholder="Enter your last name"
+                    className="h-11"
+                  />
+                ) : (
+                  <div className="h-11 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 flex items-center">
+                    {profileData.lastName || 'Not set'}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <Mail className="h-4 w-4" />
+              <Label htmlFor="email" className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <Mail className="h-4 w-4 text-gray-600 flex-shrink-0" />
                 Email Address
               </Label>
               <Input
@@ -624,54 +667,86 @@ export default function ExpertProfileSettings() {
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="position" className="text-sm font-medium text-gray-700">Position</Label>
-                <Input
-                  id="position"
-                  value={profileData.position}
-                  onChange={(e) => handleInputChange('position', e.target.value)}
-                  placeholder="e.g., Senior Software Engineer"
-                  className="h-11"
-                  disabled={!isEditMode}
-                />
+                <Label htmlFor="position" className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <Briefcase className="h-4 w-4 text-gray-600 flex-shrink-0" />
+                  Position
+                </Label>
+                {isEditMode ? (
+                  <Input
+                    id="position"
+                    value={profileData.position || ''}
+                    onChange={(e) => handleInputChange('position', e.target.value)}
+                    placeholder="e.g., Senior Software Engineer"
+                    className="h-11"
+                  />
+                ) : (
+                  <div className="h-11 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 flex items-center">
+                    {profileData.position || 'Not set'}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="company" className="text-sm font-medium text-gray-700">Company Name</Label>
-                <Input
-                  id="company"
-                  value={profileData.company}
-                  onChange={(e) => handleInputChange('company', e.target.value)}
-                  placeholder="e.g., Google, Microsoft"
-                  className="h-11"
-                  disabled={!isEditMode}
-                />
+                <Label htmlFor="company" className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-gray-600 flex-shrink-0" />
+                  Company Name
+                </Label>
+                {isEditMode ? (
+                  <Input
+                    id="company"
+                    value={profileData.company || ''}
+                    onChange={(e) => handleInputChange('company', e.target.value)}
+                    placeholder="e.g., Google, Microsoft"
+                    className="h-11"
+                  />
+                ) : (
+                  <div className="h-11 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 flex items-center">
+                    {profileData.company || 'Not set'}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="bio" className="text-sm font-medium text-gray-700">Bio</Label>
-              <Textarea
-                id="bio"
-                value={profileData.bio}
-                onChange={(e) => handleInputChange('bio', e.target.value)}
-                placeholder="Short professional bio (displayed in marketplace)"
-                rows={3}
-                className="resize-none"
-                disabled={!isEditMode}
-              />
+              <Label htmlFor="bio" className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <UserCircle className="h-4 w-4 text-gray-600 flex-shrink-0" />
+                Bio
+              </Label>
+              {isEditMode ? (
+                <Textarea
+                  id="bio"
+                  value={profileData.bio || ''}
+                  onChange={(e) => handleInputChange('bio', e.target.value)}
+                  placeholder="Short professional bio (displayed in marketplace)"
+                  rows={3}
+                  className="resize-none"
+                />
+              ) : (
+                <div className="min-h-[80px] px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900">
+                  {profileData.bio || 'Not set'}
+                </div>
+              )}
               <p className="text-sm text-gray-500">This will be displayed in the marketplace</p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="aboutMe" className="text-sm font-medium text-gray-700">About Me</Label>
-              <Textarea
-                id="aboutMe"
-                value={profileData.aboutMe}
-                onChange={(e) => handleInputChange('aboutMe', e.target.value)}
-                placeholder="Detailed description about yourself, experience, and expertise"
-                rows={6}
-                className="resize-none"
-                disabled={!isEditMode}
-              />
+              <Label htmlFor="aboutMe" className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <FileText className="h-4 w-4 text-gray-600 flex-shrink-0" />
+                About Me
+              </Label>
+              {isEditMode ? (
+                <Textarea
+                  id="aboutMe"
+                  value={profileData.aboutMe || ''}
+                  onChange={(e) => handleInputChange('aboutMe', e.target.value)}
+                  placeholder="Detailed description about yourself, experience, and expertise"
+                  rows={6}
+                  className="resize-none"
+                />
+              ) : (
+                <div className="min-h-[150px] px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 whitespace-pre-wrap">
+                  {profileData.aboutMe || 'Not set'}
+                </div>
+              )}
               <p className="text-sm text-gray-500">This will be displayed on your profile page</p>
             </div>
           </CardContent>
@@ -688,11 +763,16 @@ export default function ExpertProfileSettings() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-8">
-            {isEditMode && (
-              <div className="border rounded-lg p-6 bg-gray-50/50">
-                <h3 className="font-semibold text-lg text-gray-900 mb-6">Add New Review</h3>
+            {/* Add New Review Section */}
+            <div className="border rounded-lg p-6 bg-gray-50/30">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-semibold text-xl text-gray-900 flex items-center gap-2">
+                  <Plus className="h-5 w-5 text-gray-600 flex-shrink-0" />
+                  Add New Review
+                </h3>
+              </div>
               
-              {/* Reviewer Avatar Section */}
+              {/* Reviewer Avatar - Always Visible */}
               <div className="mb-6">
                 <Label className="text-sm font-medium text-gray-700 mb-3 block">Reviewer Avatar (Optional)</Label>
                 <div className="flex items-center gap-4">
@@ -712,12 +792,14 @@ export default function ExpertProfileSettings() {
                         </div>
                       )}
                     </div>
-                    <label
-                      htmlFor="reviewer-avatar-upload"
-                      className="absolute -bottom-1 -right-1 bg-gray-800 text-white p-1.5 rounded-full cursor-pointer hover:bg-gray-900 transition-all duration-200 shadow-lg hover:shadow-xl border-2 border-white"
-                    >
-                      <Upload className="h-3 w-3" />
-                    </label>
+                    {isEditMode && (
+                      <label
+                        htmlFor="reviewer-avatar-upload"
+                        className="absolute -bottom-1 -right-1 bg-gray-800 text-white p-1.5 rounded-full cursor-pointer hover:bg-gray-900 transition-all duration-200 shadow-lg hover:shadow-xl border-2 border-white"
+                      >
+                        <Upload className="h-3 w-3" />
+                      </label>
+                    )}
                     <input
                       id="reviewer-avatar-upload"
                       type="file"
@@ -729,7 +811,7 @@ export default function ExpertProfileSettings() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm text-gray-600 mb-2">
-                      Upload a profile picture for the reviewer
+                      {isEditMode ? 'Upload a profile picture for the reviewer' : 'Reviewer avatar'}
                     </p>
                     {isUploadingReviewerAvatar && (
                       <div className="flex items-center gap-2">
@@ -737,122 +819,208 @@ export default function ExpertProfileSettings() {
                         <span className="text-sm text-blue-600 font-medium">Uploading...</span>
                       </div>
                     )}
-                    <div className="text-xs text-gray-500">
-                      <p>• JPG, PNG, GIF, WebP formats</p>
-                      <p>• Maximum 10MB file size</p>
-                      <p>• Square aspect ratio preferred</p>
-                    </div>
+                    {isEditMode && (
+                      <div className="text-xs text-gray-500">
+                        <p>• JPG, PNG, GIF, WebP formats</p>
+                        <p>• Maximum 10MB file size</p>
+                        <p>• Square aspect ratio preferred</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Review Form Fields - Always Visible */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div className="space-y-2">
-                  <Label htmlFor="reviewerName" className="text-sm font-medium text-gray-700">Reviewer Name *</Label>
-                  <Input
-                    id="reviewerName"
-                    value={newReview.reviewerName}
-                    onChange={(e) => setNewReview(prev => ({ ...prev, reviewerName: e.target.value }))}
-                    placeholder="Enter reviewer name"
-                    className="h-11"
-                  />
+                  <Label htmlFor="reviewerName" className="text-sm font-medium text-gray-700">
+                    Reviewer Name <span className="text-red-500">*</span>
+                  </Label>
+                  {isEditMode ? (
+                    <Input
+                      id="reviewerName"
+                      value={newReview.reviewerName}
+                      onChange={(e) => setNewReview(prev => ({ ...prev, reviewerName: e.target.value }))}
+                      placeholder="Enter reviewer name"
+                      className="h-11"
+                    />
+                  ) : (
+                    <div className="h-11 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 flex items-center">
+                      {newReview.reviewerName || 'Not set'}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="reviewerPosition" className="text-sm font-medium text-gray-700">Position</Label>
-                  <Input
-                    id="reviewerPosition"
-                    value={newReview.position}
-                    onChange={(e) => setNewReview(prev => ({ ...prev, position: e.target.value }))}
-                    placeholder="e.g., CEO, Manager"
-                    className="h-11"
-                  />
+                  <Label htmlFor="reviewerPosition" className="text-sm font-medium text-gray-700">
+                    Position
+                  </Label>
+                  {isEditMode ? (
+                    <Input
+                      id="reviewerPosition"
+                      value={newReview.position}
+                      onChange={(e) => setNewReview(prev => ({ ...prev, position: e.target.value }))}
+                      placeholder="e.g., CEO, Manager"
+                      className="h-11"
+                    />
+                  ) : (
+                    <div className="h-11 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 flex items-center">
+                      {newReview.position || 'Not set'}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="reviewerCompany" className="text-sm font-medium text-gray-700">Company</Label>
-                  <Input
-                    id="reviewerCompany"
-                    value={newReview.company}
-                    onChange={(e) => setNewReview(prev => ({ ...prev, company: e.target.value }))}
-                    placeholder="Company name"
-                    className="h-11"
-                  />
+                  <Label htmlFor="reviewerCompany" className="text-sm font-medium text-gray-700">
+                    Company
+                  </Label>
+                  {isEditMode ? (
+                    <Input
+                      id="reviewerCompany"
+                      value={newReview.company}
+                      onChange={(e) => setNewReview(prev => ({ ...prev, company: e.target.value }))}
+                      placeholder="Company name"
+                      className="h-11"
+                    />
+                  ) : (
+                    <div className="h-11 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 flex items-center">
+                      {newReview.company || 'Not set'}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="reviewSource" className="text-sm font-medium text-gray-700">Review Source</Label>
-                  <Select
-                    value={newReview.source}
-                    onValueChange={(value) => setNewReview(prev => ({ ...prev, source: value }))}
-                  >
-                    <SelectTrigger className="h-11 w-full min-h-[44px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="direct">Direct</SelectItem>
-                      <SelectItem value="linkedin">LinkedIn</SelectItem>
-                      <SelectItem value="google">Google</SelectItem>
-                      <SelectItem value="clutch">Clutch</SelectItem>
-                      <SelectItem value="upwork">Upwork</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="reviewSource" className="text-sm font-medium text-gray-700">
+                    Review Source
+                  </Label>
+                  {isEditMode ? (
+                    <Select
+                      value={newReview.source}
+                      onValueChange={(value) => setNewReview(prev => ({ ...prev, source: value }))}
+                    >
+                      <SelectTrigger className="h-11 w-full">
+                        <SelectValue placeholder="Select source" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="direct">Direct</SelectItem>
+                        <SelectItem value="linkedin">LinkedIn</SelectItem>
+                        <SelectItem value="google">Google</SelectItem>
+                        <SelectItem value="clutch">Clutch</SelectItem>
+                        <SelectItem value="upwork">Upwork</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="h-11 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 flex items-center">
+                      {newReview.source ? newReview.source.charAt(0).toUpperCase() + newReview.source.slice(1) : 'Not set'}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="reviewStars" className="text-sm font-medium text-gray-700">Rating</Label>
-                  <Select
-                    value={newReview.stars.toString()}
-                    onValueChange={(value) => setNewReview(prev => ({ ...prev, stars: parseInt(value) }))}
-                  >
-                    <SelectTrigger className="h-11 w-full min-h-[44px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[1, 2, 3, 4, 5].map(star => (
-                        <SelectItem key={star} value={star.toString()}>
-                          {renderStars(star)} ({star} star{star !== 1 ? 's' : ''})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="reviewStars" className="text-sm font-medium text-gray-700">
+                    Rating
+                  </Label>
+                  {isEditMode ? (
+                    <Select
+                      value={newReview.stars.toString()}
+                      onValueChange={(value) => setNewReview(prev => ({ ...prev, stars: parseInt(value) }))}
+                    >
+                      <SelectTrigger className="h-11 w-full">
+                        <SelectValue placeholder="Select rating" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5].map(star => (
+                          <SelectItem key={star} value={star.toString()}>
+                            {renderStars(star)} ({star} star{star !== 1 ? 's' : ''})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="h-11 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 flex items-center gap-2">
+                      {renderStars(newReview.stars)}
+                      <span className="text-sm text-gray-600">({newReview.stars} star{newReview.stars !== 1 ? 's' : ''})</span>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="feedbackDate" className="text-sm font-medium text-gray-700">Feedback Date</Label>
-                  <Input
-                    id="feedbackDate"
-                    type="date"
-                    value={newReview.feedbackDate}
-                    onChange={(e) => setNewReview(prev => ({ ...prev, feedbackDate: e.target.value }))}
-                    className="h-11 w-full"
-                  />
+                  <Label htmlFor="feedbackDate" className="text-sm font-medium text-gray-700">
+                    Feedback Date
+                  </Label>
+                  {isEditMode ? (
+                    <Input
+                      id="feedbackDate"
+                      type="date"
+                      value={newReview.feedbackDate}
+                      onChange={(e) => setNewReview(prev => ({ ...prev, feedbackDate: e.target.value }))}
+                      className="h-11 w-full"
+                    />
+                  ) : (
+                    <div className="h-11 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 flex items-center">
+                      {newReview.feedbackDate ? new Date(newReview.feedbackDate).toLocaleDateString() : 'Not set'}
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="mt-6 space-y-2">
-                <Label htmlFor="reviewMessage" className="text-sm font-medium text-gray-700">Message *</Label>
-                <Textarea
-                  id="reviewMessage"
-                  value={newReview.message}
-                  onChange={(e) => setNewReview(prev => ({ ...prev, message: e.target.value }))}
-                  placeholder="Enter the review message"
-                  rows={3}
-                  className="resize-none"
-                />
+              
+              <div className="space-y-2 mb-6">
+                <Label htmlFor="reviewMessage" className="text-sm font-medium text-gray-700">
+                  Message <span className="text-red-500">*</span>
+                </Label>
+                {isEditMode ? (
+                  <Textarea
+                    id="reviewMessage"
+                    value={newReview.message}
+                    onChange={(e) => setNewReview(prev => ({ ...prev, message: e.target.value }))}
+                    placeholder="Enter the review message"
+                    rows={4}
+                    className="resize-none"
+                  />
+                ) : (
+                  <div className="min-h-[100px] px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 whitespace-pre-wrap">
+                    {newReview.message || 'Not set'}
+                  </div>
+                )}
               </div>
-              <div className="mt-6 flex justify-end">
-                <Button onClick={addReview} className="px-6">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Review
-                </Button>
+
+              {/* Add Review Button - Always Visible */}
+              <div className="pt-4 border-t border-gray-200">
+                {isEditMode ? (
+                  <>
+                    <div className="flex justify-end gap-3">
+                      <Button 
+                        onClick={addReview}
+                        className="px-6 bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg transition-all"
+                        disabled={!newReview.reviewerName || !newReview.message}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Review
+                      </Button>
+                    </div>
+                    {(!newReview.reviewerName || !newReview.message) && (
+                      <p className="text-xs text-gray-500 mt-2 text-right">
+                        * Please fill in reviewer name and message to add review
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center py-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <p className="text-sm text-blue-700">
+                      <span className="font-semibold">Edit mode required:</span> Click "Edit Profile" at the top to add reviews
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
-            )}
-
 
             <div className="space-y-4">
               <h3 className="font-semibold text-lg text-gray-900">Your Reviews ({reviews.length})</h3>
               {reviews.length === 0 ? (
-                <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg">
+                <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50/30">
                   <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600 text-lg font-medium">No reviews added yet</p>
-                  <p className="text-gray-500 text-sm mt-1">Add your first review above to get started</p>
+                  <p className="text-gray-500 text-sm mt-1">
+                    {isEditMode 
+                      ? "Fill out the form above to add your first review" 
+                      : "Click 'Edit Profile' to add your first review"}
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -915,7 +1083,6 @@ export default function ExpertProfileSettings() {
           </CardContent>
         </Card>
 
-        {/* Social Media Links Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -929,64 +1096,188 @@ export default function ExpertProfileSettings() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="linkedinUrl">LinkedIn URL</Label>
-                <Input
-                  id="linkedinUrl"
-                  value={profileData.linkedinUrl}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, linkedinUrl: e.target.value }))}
-                  placeholder="https://linkedin.com/in/yourprofile"
-                  disabled={!isEditMode}
-                />
+                <Label htmlFor="linkedinUrl" className="flex items-center gap-2">
+                  <Linkedin className="h-4 w-4 text-[#0077b5] flex-shrink-0" />
+                  LinkedIn URL
+                </Label>
+                {isEditMode ? (
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none z-10">
+                      <Linkedin className="h-4 w-4 text-[#0077b5]" />
+                    </div>
+                    <Input
+                      id="linkedinUrl"
+                      value={profileData.linkedinUrl || ''}
+                      onChange={(e) => handleInputChange('linkedinUrl', e.target.value)}
+                      placeholder="https://linkedin.com/in/yourprofile"
+                      className="pl-10"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-11 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 flex items-center gap-2">
+                    <Linkedin className="h-4 w-4 text-[#0077b5] flex-shrink-0" />
+                    {profileData.linkedinUrl ? (
+                      <a href={profileData.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
+                        {profileData.linkedinUrl}
+                      </a>
+                    ) : (
+                      <span className="text-gray-500">Not set</span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="instagramUrl">Instagram URL</Label>
-                <Input
-                  id="instagramUrl"
-                  value={profileData.instagramUrl}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, instagramUrl: e.target.value }))}
-                  placeholder="https://instagram.com/yourprofile"
-                  disabled={!isEditMode}
-                />
+                <Label htmlFor="instagramUrl" className="flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4 flex-shrink-0" style={{ color: '#E4405F' }} />
+                  Instagram URL
+                </Label>
+                {isEditMode ? (
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none z-10">
+                      <ImageIcon className="h-4 w-4" style={{ color: '#E4405F' }} />
+                    </div>
+                    <Input
+                      id="instagramUrl"
+                      value={profileData.instagramUrl || ''}
+                      onChange={(e) => handleInputChange('instagramUrl', e.target.value)}
+                      placeholder="https://instagram.com/yourprofile"
+                      className="pl-10"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-11 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4 flex-shrink-0" style={{ color: '#E4405F' }} />
+                    {profileData.instagramUrl ? (
+                      <a href={profileData.instagramUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
+                        {profileData.instagramUrl}
+                      </a>
+                    ) : (
+                      <span className="text-gray-500">Not set</span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="facebookUrl">Facebook URL</Label>
-                <Input
-                  id="facebookUrl"
-                  value={profileData.facebookUrl}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, facebookUrl: e.target.value }))}
-                  placeholder="https://facebook.com/yourprofile"
-                  disabled={!isEditMode}
-                />
+                <Label htmlFor="facebookUrl" className="flex items-center gap-2">
+                  <Share2 className="h-4 w-4 flex-shrink-0" style={{ color: '#1877F2' }} />
+                  Facebook URL
+                </Label>
+                {isEditMode ? (
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none z-10">
+                      <Share2 className="h-4 w-4" style={{ color: '#1877F2' }} />
+                    </div>
+                    <Input
+                      id="facebookUrl"
+                      value={profileData.facebookUrl || ''}
+                      onChange={(e) => handleInputChange('facebookUrl', e.target.value)}
+                      placeholder="https://facebook.com/yourprofile"
+                      className="pl-10"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-11 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 flex items-center gap-2">
+                    <Share2 className="h-4 w-4 flex-shrink-0" style={{ color: '#1877F2' }} />
+                    {profileData.facebookUrl ? (
+                      <a href={profileData.facebookUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
+                        {profileData.facebookUrl}
+                      </a>
+                    ) : (
+                      <span className="text-gray-500">Not set</span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="twitterUrl">Twitter/X URL</Label>
-                <Input
-                  id="twitterUrl"
-                  value={profileData.twitterUrl}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, twitterUrl: e.target.value }))}
-                  placeholder="https://x.com/yourprofile"
-                  disabled={!isEditMode}
-                />
+                <Label htmlFor="twitterUrl" className="flex items-center gap-2">
+                  <AtSign className="h-4 w-4 flex-shrink-0" style={{ color: '#1DA1F2' }} />
+                  Twitter/X URL
+                </Label>
+                {isEditMode ? (
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none z-10">
+                      <AtSign className="h-4 w-4" style={{ color: '#1DA1F2' }} />
+                    </div>
+                    <Input
+                      id="twitterUrl"
+                      value={profileData.twitterUrl || ''}
+                      onChange={(e) => handleInputChange('twitterUrl', e.target.value)}
+                      placeholder="https://x.com/yourprofile"
+                      className="pl-10"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-11 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 flex items-center gap-2">
+                    <AtSign className="h-4 w-4 flex-shrink-0" style={{ color: '#1DA1F2' }} />
+                    {profileData.twitterUrl ? (
+                      <a href={profileData.twitterUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
+                        {profileData.twitterUrl}
+                      </a>
+                    ) : (
+                      <span className="text-gray-500">Not set</span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="youtubeUrl">YouTube URL</Label>
-                <Input
-                  id="youtubeUrl"
-                  value={profileData.youtubeUrl}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, youtubeUrl: e.target.value }))}
-                  placeholder="https://youtube.com/@yourchannel"
-                  disabled={!isEditMode}
-                />
+                <Label htmlFor="youtubeUrl" className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 flex-shrink-0" style={{ color: '#FF0000' }} />
+                  YouTube URL
+                </Label>
+                {isEditMode ? (
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none z-10">
+                      <MessageSquare className="h-4 w-4" style={{ color: '#FF0000' }} />
+                    </div>
+                    <Input
+                      id="youtubeUrl"
+                      value={profileData.youtubeUrl || ''}
+                      onChange={(e) => handleInputChange('youtubeUrl', e.target.value)}
+                      placeholder="https://youtube.com/@yourchannel"
+                      className="pl-10"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-11 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 flex-shrink-0" style={{ color: '#FF0000' }} />
+                    {profileData.youtubeUrl ? (
+                      <a href={profileData.youtubeUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
+                        {profileData.youtubeUrl}
+                      </a>
+                    ) : (
+                      <span className="text-gray-500">Not set</span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="websiteUrl">Website URL</Label>
-                <Input
-                  id="websiteUrl"
-                  value={profileData.websiteUrl}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, websiteUrl: e.target.value }))}
-                  placeholder="https://yourwebsite.com"
-                  disabled={!isEditMode}
-                />
+                <Label htmlFor="websiteUrl" className="flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-gray-600" />
+                  Website URL
+                </Label>
+                {isEditMode ? (
+                  <div className="relative">
+                    <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-600" />
+                    <Input
+                      id="websiteUrl"
+                      value={profileData.websiteUrl || ''}
+                      onChange={(e) => handleInputChange('websiteUrl', e.target.value)}
+                      placeholder="https://yourwebsite.com"
+                      className="pl-10"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-11 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-gray-600 flex-shrink-0" />
+                    {profileData.websiteUrl ? (
+                      <a href={profileData.websiteUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
+                        {profileData.websiteUrl}
+                      </a>
+                    ) : (
+                      <span className="text-gray-500">Not set</span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
@@ -998,7 +1289,7 @@ export default function ExpertProfileSettings() {
               onClick={saveProfile} 
               disabled={isSaving} 
               size="lg" 
-              className={`px-8 ${hasUnsavedChanges ? 'bg-orange-600 hover:bg-orange-700' : ''}`}
+              className={`px-8 ${hasUnsavedChanges ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
             >
               {isSaving ? (
                 <>

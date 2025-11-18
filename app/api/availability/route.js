@@ -11,7 +11,12 @@ export async function GET() {
     }
 
     const user = await prisma.user.findUnique({
-      where: { clerkId: userId }
+      where: { clerkId: userId },
+      select: {
+        id: true,
+        accountStatus: true,
+        timezone: true
+      }
     })
 
     if (!user) {
@@ -30,9 +35,15 @@ export async function GET() {
       ]
     })
 
+    // Log for debugging
+    console.log('🔍 [DEBUG] API GET - User timezone:', user.timezone)
+
     return NextResponse.json({ 
       success: true, 
-      availabilities 
+      availabilities,
+      expert: {
+        timezone: user.timezone || 'UTC'
+      }
     })
 
   } catch (error) {

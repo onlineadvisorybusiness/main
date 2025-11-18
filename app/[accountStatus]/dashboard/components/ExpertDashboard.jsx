@@ -6,12 +6,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Calendar, Users, DollarSign, TrendingUp, Clock, FileText, Download } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area } from 'recharts'
 
 export default function ExpertDashboard({ user }) {
-  const [earningsChartPeriod, setEarningsChartPeriod] = useState('7')
   const [sessionsChartPeriod, setSessionsChartPeriod] = useState('7')
-  const [trendChartPeriod, setTrendChartPeriod] = useState('7')
 
   const downloadCSV = (data, filename) => {
     const csvContent = convertToCSV(data)
@@ -60,10 +57,7 @@ export default function ExpertDashboard({ user }) {
 
   const handleExportData = (format) => {
     const exportData = {
-      earnings: earningsChartData,
       sessions: sessionsChartData,
-      trend: trendChartData,
-      sessionsOverview: sessionsOverviewData,
       todaysSessions: todaysSessionsData,
       summary: {
         totalEarnings: totalEarnings,
@@ -72,8 +66,7 @@ export default function ExpertDashboard({ user }) {
         upcomingSessions: upcomingMeetings.length,
         todaySessions: todayMeetings.length,
         pastSessions: pastMeetings.length,
-        cancelledSessions: cancelledMeetings.length,
-        earningPerSession: earningPerSession
+        cancelledSessions: cancelledMeetings.length
       }
     }
 
@@ -120,7 +113,6 @@ export default function ExpertDashboard({ user }) {
     meeting.status === 'cancelled'
   ) || []
 
-  // For backwards compatibility
   const completedMeetings = pastMeetings
 
   const past7DaysMeetings = user.meetings?.filter(meeting => {
@@ -130,77 +122,13 @@ export default function ExpertDashboard({ user }) {
 
   const totalEarnings = completedMeetings.reduce((sum, meeting) => sum + (meeting.amount || 0), 0)
   const past7DaysEarnings = past7DaysMeetings.reduce((sum, meeting) => sum + (meeting.amount || 0), 0)
-  const earningPerSession = completedMeetings.length > 0 ? totalEarnings / completedMeetings.length : 0
-
-  const generateEarningsChartData = (period) => {
-    const days = parseInt(period)
-    const data = []
-    
-    // Group meetings by period based on the selected timeframe
-    const meetingsByPeriod = {}
-    
-    // Initialize periods with zero values
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date(today.getTime() - i * 24 * 60 * 60 * 1000)
-      let periodKey
-      
-      if (period === '365') {
-        if (i % 30 === 0) {
-          periodKey = date.toLocaleDateString('en-US', { month: 'short' })
-        }
-      } else if (period === '90') {
-        if (i % 7 === 0) {
-          periodKey = `Week ${Math.floor((days - i) / 7) + 1}`
-        }
-      } else {
-        periodKey = date.toLocaleDateString('en-US', { weekday: 'short' })
-      }
-      
-      if (periodKey && !meetingsByPeriod[periodKey]) {
-        meetingsByPeriod[periodKey] = { earnings: 0, sessions: 0 }
-      }
-    }
-    
-    // Count actual meetings and calculate earnings
-    completedMeetings.forEach(meeting => {
-      const meetingDate = new Date(meeting.startTime)
-      let periodKey
-      
-      if (period === '365') {
-        periodKey = meetingDate.toLocaleDateString('en-US', { month: 'short' })
-      } else if (period === '90') {
-        const weekNumber = Math.floor((today - meetingDate) / (7 * 24 * 60 * 60 * 1000)) + 1
-        periodKey = `Week ${weekNumber}`
-      } else {
-        periodKey = meetingDate.toLocaleDateString('en-US', { weekday: 'short' })
-      }
-      
-      if (meetingsByPeriod[periodKey]) {
-        meetingsByPeriod[periodKey].earnings += meeting.amount || 0
-        meetingsByPeriod[periodKey].sessions += 1
-      }
-    })
-    
-    // Convert to array format
-    Object.entries(meetingsByPeriod).forEach(([period, stats]) => {
-      data.push({
-        period,
-        earnings: stats.earnings,
-        sessions: stats.sessions
-      })
-    })
-    
-    return data
-  }
 
   const generateSessionsChartData = (period) => {
     const days = parseInt(period)
     const data = []
     
-    // Group meetings by period based on the selected timeframe
     const meetingsByPeriod = {}
     
-    // Initialize periods with zero values
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date(today.getTime() - i * 24 * 60 * 60 * 1000)
       let periodKey
@@ -222,7 +150,6 @@ export default function ExpertDashboard({ user }) {
       }
     }
     
-    // Count actual meetings and calculate earnings
     completedMeetings.forEach(meeting => {
       const meetingDate = new Date(meeting.startTime)
       let periodKey
@@ -242,7 +169,6 @@ export default function ExpertDashboard({ user }) {
       }
     })
     
-    // Convert to array format
     Object.entries(meetingsByPeriod).forEach(([period, stats]) => {
       data.push({
         period,
@@ -254,142 +180,9 @@ export default function ExpertDashboard({ user }) {
     return data
   }
 
-  const generateTrendChartData = (period) => {
-    const days = parseInt(period)
-    const data = []
-    
-    // Group meetings by period based on the selected timeframe
-    const meetingsByPeriod = {}
-    
-    // Initialize periods with zero values
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date(today.getTime() - i * 24 * 60 * 60 * 1000)
-      let periodKey
-      
-      if (period === '365') {
-        if (i % 30 === 0) {
-          periodKey = date.toLocaleDateString('en-US', { month: 'short' })
-        }
-      } else if (period === '90') {
-        if (i % 7 === 0) {
-          periodKey = `Week ${Math.floor((days - i) / 7) + 1}`
-        }
-      } else {
-        periodKey = date.toLocaleDateString('en-US', { weekday: 'short' })
-      }
-      
-      if (periodKey && !meetingsByPeriod[periodKey]) {
-        meetingsByPeriod[periodKey] = { earnings: 0, sessions: 0 }
-      }
-    }
-    
-    // Count actual meetings and calculate earnings
-    completedMeetings.forEach(meeting => {
-      const meetingDate = new Date(meeting.startTime)
-      let periodKey
-      
-      if (period === '365') {
-        periodKey = meetingDate.toLocaleDateString('en-US', { month: 'short' })
-      } else if (period === '90') {
-        const weekNumber = Math.floor((today - meetingDate) / (7 * 24 * 60 * 60 * 1000)) + 1
-        periodKey = `Week ${weekNumber}`
-      } else {
-        periodKey = meetingDate.toLocaleDateString('en-US', { weekday: 'short' })
-      }
-      
-      if (meetingsByPeriod[periodKey]) {
-        meetingsByPeriod[periodKey].earnings += meeting.amount || 0
-        meetingsByPeriod[periodKey].sessions += 1
-      }
-    })
-    
-    // Convert to array format
-    Object.entries(meetingsByPeriod).forEach(([period, stats]) => {
-      data.push({
-        period,
-        earnings: stats.earnings,
-        sessions: stats.sessions
-      })
-    })
-    
-    return data
-  }
-
-  const earningsChartData = generateEarningsChartData(earningsChartPeriod)
   const sessionsChartData = generateSessionsChartData(sessionsChartPeriod)
-  const trendChartData = generateTrendChartData(trendChartPeriod)
   
-  // Generate Sessions Overview data based on selected period
-  const generateSessionsOverviewData = (period) => {
-    const days = parseInt(period)
-    const data = []
-    
-    // Group meetings by period based on the selected timeframe
-    const meetingsByPeriod = {}
-    
-    // Initialize periods with zero values
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date(today.getTime() - i * 24 * 60 * 60 * 1000)
-      let periodKey
-      
-      if (period === '365') {
-        if (i % 30 === 0) {
-          periodKey = date.toLocaleDateString('en-US', { month: 'short' })
-        }
-      } else if (period === '90') {
-        if (i % 7 === 0) {
-          periodKey = `Week ${Math.floor((days - i) / 7) + 1}`
-        }
-      } else {
-        periodKey = date.toLocaleDateString('en-US', { weekday: 'short' })
-      }
-      
-      if (periodKey && !meetingsByPeriod[periodKey]) {
-        meetingsByPeriod[periodKey] = { completed: 0, upcoming: 0, cancelled: 0 }
-      }
-    }
-    
-    // Count actual meetings by status
-    user.meetings?.forEach(meeting => {
-      const meetingDate = new Date(meeting.startTime)
-      let periodKey
-      
-      if (period === '365') {
-        periodKey = meetingDate.toLocaleDateString('en-US', { month: 'short' })
-      } else if (period === '90') {
-        const weekNumber = Math.floor((today - meetingDate) / (7 * 24 * 60 * 60 * 1000)) + 1
-        periodKey = `Week ${weekNumber}`
-      } else {
-        periodKey = meetingDate.toLocaleDateString('en-US', { weekday: 'short' })
-      }
-      
-      if (meetingsByPeriod[periodKey]) {
-        if (meeting.status === 'completed') {
-          meetingsByPeriod[periodKey].completed += 1
-        } else if (meeting.status === 'scheduled') {
-          meetingsByPeriod[periodKey].upcoming += 1
-        } else if (meeting.status === 'cancelled') {
-          meetingsByPeriod[periodKey].cancelled += 1
-        }
-      }
-    })
-    
-    // Convert to array format
-    Object.entries(meetingsByPeriod).forEach(([period, stats]) => {
-      data.push({
-        period,
-        completed: stats.completed,
-        upcoming: stats.upcoming,
-        cancelled: stats.cancelled
-      })
-    })
-    
-    return data
-  }
 
-  const sessionsOverviewData = generateSessionsOverviewData(sessionsChartPeriod)
-
-  // Transform today's meetings into session data format
   const todaysSessionsData = todayMeetings.map(meeting => {
     const learnerName = `${meeting.participant?.firstName || ''} ${meeting.participant?.lastName || ''}`.trim()
     const learnerInitials = learnerName ? learnerName.split(' ').map(n => n[0]).join('') : 'L'
@@ -408,30 +201,9 @@ export default function ExpertDashboard({ user }) {
       learnerInitials: learnerInitials,
       earnings: meeting.amount || 0,
       currency: meeting.currency || 'USD'
-    }
+    } 
   })
 
-  const DayFilter = ({ selectedPeriod, setSelectedPeriod }) => (
-    <div className="flex gap-2 mb-4">
-      {[
-        { value: '7', label: '7 Days' },
-        { value: '14', label: '14 Days' },
-        { value: '28', label: '28 Days' },
-        { value: '90', label: '90 Days' },
-        { value: '365', label: '365 Days' }
-      ].map((option) => (
-        <Button
-          key={option.value}
-          variant={selectedPeriod === option.value ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setSelectedPeriod(option.value)}
-          className={selectedPeriod === option.value ? 'bg-gray-800 hover:bg-gray-700' : ''}
-        >
-          {option.label}
-        </Button>
-      ))}
-    </div>
-  )
 
   return (
     <div className="space-y-6 w-full">
@@ -464,33 +236,7 @@ export default function ExpertDashboard({ user }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Earnings</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${past7DaysEarnings}</div>
-            <p className="text-xs text-muted-foreground">
-              Past 7 days
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Earnings</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalEarnings}</div>
-            <p className="text-xs text-muted-foreground">
-              All time earnings
-            </p>
-          </CardContent>
-        </Card>
-
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Sessions</CardTitle>
@@ -558,19 +304,20 @@ export default function ExpertDashboard({ user }) {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Earning Per Session</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total Earnings</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${earningPerSession.toFixed(0)}</div>
+            <div className="text-2xl font-bold">${totalEarnings}</div>
             <p className="text-xs text-muted-foreground">
-              Average per session
+              All time earnings
             </p>
           </CardContent>
         </Card>
+
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6"> 
+      <div className="grid grid-cols-1 gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -601,8 +348,8 @@ export default function ExpertDashboard({ user }) {
                     </div>
                     <div className="text-right">
                       <p className="font-medium text-gray-900">{session.time}</p>
-                      <p className="text-sm text-green-600 font-medium">
-                        ${session.earnings?.toFixed(2)} {session.currency}
+                      <p className="flex items-center gap-1 text-sm text-green-600 font-medium">
+                        <DollarSign className="h-3 w-3 text-green-600 mt-1" /> {session.earnings?.toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -616,121 +363,7 @@ export default function ExpertDashboard({ user }) {
             )}
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Earnings Overview
-            </CardTitle>
-            <CardDescription>
-              Earnings from completed sessions
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DayFilter selectedPeriod={earningsChartPeriod} setSelectedPeriod={setEarningsChartPeriod} />
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={earningsChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="period" stroke="#6b7280" />
-                <YAxis stroke="#6b7280" />
-                <Tooltip 
-                  formatter={(value, name) => [`$${value}`, name === 'earnings' ? 'Earnings' : 'Sessions']}
-                  labelStyle={{ color: '#374151' }}
-                  contentStyle={{ backgroundColor: '#f9fafb', border: '1px solid #e5e7eb' }}
-                />
-                <Bar dataKey="earnings" fill="#374151" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Sessions Overview
-            </CardTitle>
-            <CardDescription>
-              Session status distribution over selected period
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DayFilter selectedPeriod={sessionsChartPeriod} setSelectedPeriod={setSessionsChartPeriod} />
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={sessionsOverviewData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="period" stroke="#6b7280" />
-                <YAxis stroke="#6b7280" />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#f9fafb', border: '1px solid #e5e7eb' }}
-                  formatter={(value, name) => [value, name === 'completed' ? 'Completed' : name === 'upcoming' ? 'Upcoming' : 'Cancelled']}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="completed" 
-                  stackId="1" 
-                  stroke="#374151" 
-                  fill="#374151" 
-                  fillOpacity={0.6}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="upcoming" 
-                  stackId="1" 
-                  stroke="#6b7280" 
-                  fill="#6b7280" 
-                  fillOpacity={0.6}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="cancelled" 
-                  stackId="1" 
-                  stroke="#9ca3af" 
-                  fill="#9ca3af" 
-                  fillOpacity={0.6}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Earnings Trend
-            </CardTitle>
-            <CardDescription>
-              Earnings trend over selected period
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DayFilter selectedPeriod={trendChartPeriod} setSelectedPeriod={setTrendChartPeriod} />
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={trendChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="period" stroke="#6b7280" />
-                <YAxis stroke="#6b7280" />
-                <Tooltip 
-                  formatter={(value) => [`$${value}`, 'Earnings']}
-                  labelStyle={{ color: '#374151' }}
-                  contentStyle={{ backgroundColor: '#f9fafb', border: '1px solid #e5e7eb' }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="earnings" 
-                  stroke="#374151" 
-                  strokeWidth={3}
-                  dot={{ fill: '#374151', strokeWidth: 2, r: 6 }}
-                  activeDot={{ r: 8, fill: '#374151' }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
       </div>
-
     </div>
   )
 }
