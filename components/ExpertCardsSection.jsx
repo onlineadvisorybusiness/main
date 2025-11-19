@@ -165,7 +165,7 @@ export function ExpertCardsSection() {
                 delay={index * 0.1}
                 className="flex-shrink-0 group"
               >
-                <div className="relative w-80 h-[500px] rounded-2xl overflow-hidden cursor-pointer">
+                <div className="relative w-72 sm:w-80 h-[450px] sm:h-[500px] rounded-2xl overflow-hidden cursor-pointer">
                   <Image
                     src={expert.avatar}
                     alt={expert.name}
@@ -190,33 +190,46 @@ export function ExpertCardsSection() {
                     )}
                   </div>
                   
-                  <div className="absolute bottom-0 left-0 right-0 p-6 z-10 transition-transform duration-300 ease-out group-hover:-translate-y-16">
+                  <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 z-10 transition-transform duration-300 ease-out md:group-hover:-translate-y-16">
                     <div className="flex items-center gap-2 mb-2">
                       <h3 
-                        className="text-white text-2xl font-bold"
+                        className="text-white text-xl sm:text-2xl font-bold"
                         style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
                       >
                         {expert.name}
                       </h3>
                       {expert.verified && (
-                        <BadgeCheck className="w-5 h-5 flex-shrink-0 mt-1 fill-blue-600 stroke-white" />
+                        <BadgeCheck className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 mt-1 fill-blue-600 stroke-white" />
                       )}
                     </div>
                     <p 
-                      className="text-white/90 text-sm leading-relaxed line-clamp-1 group-hover:line-clamp-none"
+                      className="text-white/90 text-sm leading-relaxed line-clamp-2 md:line-clamp-1 md:group-hover:line-clamp-none mb-3 md:mb-0"
                       style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
                     >
                       {expert.description}
                     </p>
+                    
+                    <div className="md:hidden mt-3">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          router.push(`/marketplace/${expert.username}`)
+                        }}
+                        className="bg-white text-black hover:text-white border border-white hover:border-white hover:bg-black px-3 py-2.5 rounded-lg font-semibold text-xs hover:bg-black transition-all duration-300 ease-out flex items-center justify-center gap-2 shadow-lg w-full cursor-pointer"
+                        style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
+                      >
+                        Book a call
+                      </button>
+                    </div>
                   </div>
-
-                  <div className="absolute bottom-0 left-0 right-0 p-6 z-20 overflow-hidden">
+                        
+                  <div className="hidden md:block absolute bottom-0 left-0 right-0 p-6 z-20 overflow-hidden">
                     <button
                       onClick={(e) => {
                         e.preventDefault()
                         router.push(`/marketplace/${expert.username}`)
                       }}
-                      className="bg-white text-black hover:text-white border border-white hover:border-white hover:bg-black px-4 py-3 rounded-lg font-semibold text-sm hover:bg-black transition-all duration-300 ease-out flex items-center justify-center gap-2 shadow-lg translate-y-full opacity-0 group-hover:translate-y-0 group-hover:opacity-100 cursor-pointer"
+                      className="bg-white text-black hover:text-white border border-white hover:border-white hover:bg-black px-4 py-3 rounded-lg font-semibold text-sm hover:bg-black transition-all duration-300 ease-out flex items-center justify-center gap-2 shadow-lg translate-y-full opacity-0 group-hover:translate-y-0 group-hover:opacity-100 cursor-pointer w-full"
                       style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
                     >
                       Book a call
@@ -232,24 +245,26 @@ export function ExpertCardsSection() {
             <button
               onClick={scrollLeft}
               disabled={!canScrollLeft}
+              aria-label="Scroll experts left"
               className={`p-1.5 rounded-full transition-all duration-200 ${
                 canScrollLeft 
                   ? 'bg-black/10 hover:bg-black/20 text-black cursor-pointer' 
                   : 'bg-black/5 text-black/30 cursor-not-allowed'
               }`}
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4" aria-hidden="true" />
             </button>
             <button
               onClick={scrollRight}
               disabled={!canScrollRight}
+              aria-label="Scroll experts right"
               className={`p-1.5 rounded-full transition-all duration-200 ${
                 canScrollRight 
                   ? 'bg-black/10 hover:bg-black/20 text-black cursor-pointer' 
                   : 'bg-black/5 text-black/30 cursor-not-allowed'
               }`}
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </div>

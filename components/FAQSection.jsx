@@ -43,17 +43,17 @@ export function FAQSection() {
   return (
     <section 
       ref={sectionRef} 
-      className="relative bg-white py-20 overflow-hidden"
+      className="relative bg-white py-12 sm:py-16 md:py-20 overflow-hidden"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-16">
-        <div className="grid md:grid-cols-2 gap-12 items-start">
+        <div className="grid md:grid-cols-2 gap-8 sm:gap-10 md:gap-12 items-start">
           <div>
             <motion.h2
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.6 }}
-              className="text-2xl md:text-3xl lg:text-4xl font-medium text-black leading-[1.2] mb-4"
+              className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-medium text-black leading-[1.2] mb-4"
               style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
             >
               <span className="relative inline-block">
@@ -67,7 +67,7 @@ export function FAQSection() {
             </motion.h2>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {faqs.map((faq, index) => (
               <motion.div
                 key={faq.id}
@@ -75,12 +75,12 @@ export function FAQSection() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
-                className="bg-gray-100 rounded-xl p-6 cursor-pointer transition-all duration-300 hover:bg-gray-200 border border-gray-200"
+                className="bg-gray-100 rounded-lg sm:rounded-xl p-4 sm:p-6 cursor-pointer transition-all duration-300 hover:bg-gray-200 border border-gray-200"
                 onClick={() => toggleFAQ(index)}
               >
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start justify-between gap-3 sm:gap-4">
                   <h3
-                    className="text-base md:text-lg font-medium text-black flex-1"
+                    className="text-sm sm:text-base md:text-lg font-medium text-black flex-1"
                     style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
                   >
                     {faq.question}
@@ -91,9 +91,9 @@ export function FAQSection() {
                     className="flex-shrink-0"
                   >
                     {openIndex === index ? (
-                      <X className="w-5 h-5 text-black" />
+                      <X className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
                     ) : (
-                      <Plus className="w-5 h-5 text-black" />
+                      <Plus className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
                     )}
                   </motion.div>
                 </div>
@@ -107,7 +107,7 @@ export function FAQSection() {
                   className="overflow-hidden"
                 >
                   <p
-                    className="text-gray-600 text-sm md:text-base leading-relaxed mt-4"
+                    className="text-gray-600 text-xs sm:text-sm md:text-base leading-relaxed mt-3 sm:mt-4"
                     style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
                   >
                     {faq.answer}

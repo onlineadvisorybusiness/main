@@ -129,16 +129,16 @@ export function CategoryCardsSection() {
   }, [])
 
   return (
-    <section className="relative bg-white py-10 overflow-hidden">
+    <section className="relative bg-white py-8 sm:py-10 overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-16">
-        <div className="mb-12 grid md:grid-cols-2 gap-8 items-start">
+        <div className="mb-8 sm:mb-12 grid md:grid-cols-2 gap-6 sm:gap-8 items-start">
           <div>
             <motion.h2
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.6 }}
-              className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-2 leading-[1.1]"
+              className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-2 leading-[1.1]"
               style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
             >
               Not sure <span className="bg-amber-700 text-transparent bg-clip-text">where</span> to start?
@@ -148,7 +148,7 @@ export function CategoryCardsSection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-base md:text-base text-gray-600 leading-relaxed max-w-lg"
+              className="text-sm sm:text-base text-gray-600 leading-relaxed max-w-lg"
               style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
             >
               Explore real challenges others are solving.
@@ -159,15 +159,15 @@ export function CategoryCardsSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.3 }}
-            className="flex justify-end"
+            className="flex justify-start md:justify-end"
           >
             <Link
               href="/marketplace"
               className="inline-flex items-center gap-2 text-black hover:text-black/80 transition-colors duration-200 group"
               style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
             >
-              <span className="text-lg">View all experts</span>
-              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" />
+              <span className="text-base sm:text-lg">View all experts</span>
+              <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform duration-200" />
             </Link>
           </motion.div>
         </div>
@@ -178,7 +178,7 @@ export function CategoryCardsSection() {
             className="overflow-x-auto scrollbar-hide pb-4"
             onScroll={checkScrollability}
           >
-            <div className="flex gap-4 min-w-max">
+            <div className="flex gap-3 sm:gap-4 min-w-max">
               {categories.map((category, index) => {
                 const Icon = category.icon
                 return (
@@ -191,7 +191,7 @@ export function CategoryCardsSection() {
                     className="flex-shrink-0"
                   >
                     <div 
-                      className={`relative w-48 h-40 rounded-xl overflow-hidden cursor-pointer bg-gradient-to-br ${category.bgGradient} border border-gray-200 group`}
+                      className={`relative w-40 sm:w-48 h-32 sm:h-40 rounded-xl overflow-hidden cursor-pointer bg-gradient-to-br ${category.bgGradient} border border-gray-200 group`}
                       onMouseEnter={(e) => {
                         const gradientDiv = e.currentTarget.querySelector('.gradient-overlay')
                         if (gradientDiv) {
@@ -214,10 +214,10 @@ export function CategoryCardsSection() {
                       />
                       
                       {/* Content */}
-                      <div className="relative z-10 h-full flex flex-col items-center justify-center p-6">
-                        <Icon className="w-8 h-8 text-gray-800 mb-3 group-hover:scale-110 transition-transform duration-300" />
+                      <div className="relative z-10 h-full flex flex-col items-center justify-center p-4 sm:p-6">
+                        <Icon className="w-6 h-6 sm:w-8 sm:h-8 text-gray-800 mb-2 sm:mb-3 group-hover:scale-110 transition-transform duration-300" />
                         <h3 
-                          className="text-gray-800 text-sm font-semibold text-center"
+                          className="text-gray-800 text-xs sm:text-sm font-semibold text-center"
                           style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
                         >
                           {category.name}
@@ -231,28 +231,30 @@ export function CategoryCardsSection() {
           </div>
 
           {/* Pagination Controls */}
-          <div className="flex items-center justify-end gap-2 mt-6">
+          <div className="flex items-center justify-end gap-2 mt-4 sm:mt-6">
             <button
               onClick={scrollLeft}
               disabled={!canScrollLeft}
+              aria-label="Scroll categories left"
               className={`p-1.5 rounded-full transition-all duration-200 ${
                 canScrollLeft 
                   ? 'bg-black/10 hover:bg-black/20 text-black cursor-pointer' 
                   : 'bg-black/5 text-black/30 cursor-not-allowed'
               }`}
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4" aria-hidden="true" />
             </button>
             <button
               onClick={scrollRight}
               disabled={!canScrollRight}
+              aria-label="Scroll categories right"
               className={`p-1.5 rounded-full transition-all duration-200 ${
                 canScrollRight 
                   ? 'bg-black/10 hover:bg-black/20 text-black cursor-pointer' 
                   : 'bg-black/5 text-black/30 cursor-not-allowed'
               }`}
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </div>

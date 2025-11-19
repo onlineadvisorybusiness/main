@@ -74,6 +74,9 @@ export default function ChatWithLearner() {
   const audioRef = useRef(null)
   const recordingIntervalRef = useRef(null)
   const notifiedMessagesRef = useRef(new Set()) // Track notified message IDs to prevent duplicates
+  const apiSentMessagesRef = useRef(new Set()) // Track messages sent via API to prevent socket duplicates
+  const socketHandlersRef = useRef({}) // Store socket handlers to prevent duplicate registrations
+  const isSendingRef = useRef(false) // Prevent multiple simultaneous sends
 
   const markAllMessagesAsRead = useCallback(async () => {
     if (selectedLearner?.conversationId && currentUser) {
@@ -569,6 +572,12 @@ export default function ChatWithLearner() {
       // If this conversation is currently selected, also add the message to the messages array
       // This handles the case where the message arrives via the user's personal room fallback
       if (String(selectedLearner?.conversationId) === String(data.conversationId)) {
+        const messageId = String(data.message.id)
+        
+        if (apiSentMessagesRef.current.has(messageId)) {
+          return
+        }
+        
         const newMessage = {
           id: data.message.id,
           senderId: data.message.senderId,
@@ -589,7 +598,7 @@ export default function ChatWithLearner() {
         }
         
         setMessages(prev => {
-          const messageExists = prev.some(msg => String(msg.id) === String(newMessage.id))
+          const messageExists = prev.some(msg => String(msg.id) === messageId)
           if (!messageExists) {
             const updated = [...prev, newMessage].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
             setGroupedMessages(groupMessagesByDate(updated))
@@ -652,27 +661,50 @@ export default function ChatWithLearner() {
       }
     }
 
-    socket.on('new_message', handleNewMessage)
-    socket.on('message_notification', handleMessageNotification)
-    socket.on('messages_read', handleMessagesRead)
-    socket.on('typing_start', handleTypingStart)
-    socket.on('typing_stop', handleTypingStop)
-    socket.on('message_reaction', handleMessageReaction)
+    // Store handlers in ref to prevent duplicate registrations
+    socketHandlersRef.current = {
+      handleNewMessage,
+      handleMessageNotification,
+      handleMessagesRead,
+      handleTypingStart,
+      handleTypingStop,
+      handleMessageReaction
+    }
+
+    // Remove old listeners first to prevent duplicates
+    if (socket) {
+      socket.off('new_message', socketHandlersRef.current.handleNewMessage)
+      socket.off('message_notification', socketHandlersRef.current.handleMessageNotification)
+      socket.off('messages_read', socketHandlersRef.current.handleMessagesRead)
+      socket.off('typing_start', socketHandlersRef.current.handleTypingStart)
+      socket.off('typing_stop', socketHandlersRef.current.handleTypingStop)
+      socket.off('message_reaction', socketHandlersRef.current.handleMessageReaction)
+      
+      // Register new listeners
+      socket.on('new_message', handleNewMessage)
+      socket.on('message_notification', handleMessageNotification)
+      socket.on('messages_read', handleMessagesRead)
+      socket.on('typing_start', handleTypingStart)
+      socket.on('typing_stop', handleTypingStop)
+      socket.on('message_reaction', handleMessageReaction)
+    }
 
     return () => {
-      socket.off('new_message', handleNewMessage)
-      socket.off('message_notification', handleMessageNotification)
-      socket.off('messages_read', handleMessagesRead)
-      socket.off('typing_start', handleTypingStart)
-      socket.off('typing_stop', handleTypingStop)
-      socket.off('message_reaction', handleMessageReaction)
+      if (socket) {
+        socket.off('new_message', handleNewMessage)
+        socket.off('message_notification', handleMessageNotification)
+        socket.off('messages_read', handleMessagesRead)
+        socket.off('typing_start', handleTypingStart)
+        socket.off('typing_stop', handleTypingStop)
+        socket.off('message_reaction', handleMessageReaction)
+      }
     }
-  }, [socket, isConnected, selectedLearner, currentUser])
+  }, [socket, isConnected, selectedLearner?.conversationId, currentUser?.id])
 
   useEffect(() => {
     if (selectedLearner?.conversationId && isConnected && socket) {
-      // Join conversation when selected and socket is connected
-      joinConversation(selectedLearner.conversationId)
+      const conversationId = selectedLearner.conversationId 
+      joinConversation(conversationId)
       
       // Listen for confirmation that we joined
       const handleJoinedConversation = (data) => {}
@@ -681,7 +713,7 @@ export default function ChatWithLearner() {
       // Also listen for connection events to rejoin if needed
       const handleReconnect = () => {
         if (selectedLearner?.conversationId) {
-          joinConversation(selectedLearner.conversationId)
+          joinConversation(conversationId)
         }
       }
       
@@ -690,8 +722,8 @@ export default function ChatWithLearner() {
       return () => {
         socket.off('connect', handleReconnect)
         socket.off('joined_conversation', handleJoinedConversation)
-        if (selectedLearner?.conversationId && isConnected) {
-          leaveConversation(selectedLearner.conversationId)
+        if (conversationId && isConnected) {
+          leaveConversation(conversationId)
         }
       }
     }
@@ -766,9 +798,15 @@ export default function ChatWithLearner() {
   }, [messages, messageDurations])
 
   const handleSendMessage = async () => {
+    // Prevent multiple simultaneous sends
+    if (isSendingRef.current) {
+      return
+    }
+    
     const trimmedMessage = message.trim()
     
     if ((trimmedMessage || attachments.length > 0) && selectedLearner && selectedLearner.conversationId) {
+      isSendingRef.current = true
       try {
         let mediaUrl = null
         
@@ -851,6 +889,9 @@ export default function ChatWithLearner() {
               } : null
             }
             
+            // Mark this message as sent via API to prevent socket from adding it again
+            apiSentMessagesRef.current.add(String(newMessage.id))
+            
             // Add message to local state immediately
             setMessages(prev => {
               const messageExists = prev.some(msg => String(msg.id) === String(newMessage.id))
@@ -861,6 +902,11 @@ export default function ChatWithLearner() {
               }
               return prev
             })
+            
+            // Clean up after 5 seconds to prevent memory leak
+            setTimeout(() => {
+              apiSentMessagesRef.current.delete(String(newMessage.id))
+            }, 5000)
             
             setLearners(prev => prev.map(learner => 
               String(learner.conversationId) === String(selectedLearner.conversationId)
@@ -884,6 +930,9 @@ export default function ChatWithLearner() {
           }
         }
       } catch (error) {
+        console.error('Error sending message:', error)
+      } finally {
+        isSendingRef.current = false
       }
     }
   }
@@ -1667,8 +1716,8 @@ export default function ChatWithLearner() {
 
   if (loading) {
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="max-w-7xl mx-auto h-full">
+    <div className="h-[calc(100vh-200px)] min-h-[470px] max-h-[800px] bg-gray-100">
+      <div className="max-w-6xl mx-auto h-full">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 h-full">
             <div className="lg:col-span-1 bg-white border-r border-gray-200">
               <div className="h-full flex flex-col">
@@ -1713,7 +1762,7 @@ export default function ChatWithLearner() {
   }
 
   return (
-    <div className="h-[470px] bg-gray-100 flex justify-center items-center">
+    <div className="h-[calc(100vh-200px)] min-h-[470px] max-h-[800px] bg-gray-100 flex justify-center items-center">
       <div className="w-full max-w-6xl mx-auto bg-white flex h-full">
         <div className="w-1/3 border-r border-gray-300 flex flex-col bg-white">
           <div className="bg-gray-50 px-4 py-3 border-b border-gray-300 flex items-center justify-between">

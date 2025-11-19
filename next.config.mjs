@@ -21,7 +21,12 @@ const nextConfig = {
       },
     ],
     qualities: [25, 50, 75, 100],
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 60,
   },
+  compress: true,
+  poweredByHeader: false,
+  reactStrictMode: true,
   serverExternalPackages: ['socket.io'],
   webpack: (config, { isServer, dev }) => {
     // Handle socket.io externalization

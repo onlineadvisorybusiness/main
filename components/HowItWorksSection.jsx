@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { useRef } from "react"
+import { useRef, useState, useEffect, useMemo } from "react"
 import { useScroll, useTransform } from "framer-motion"
 import { Search, Phone, TrendingUp } from "lucide-react"
 
@@ -37,59 +37,92 @@ const steps = [
 
 export function HowItWorksSection() {
   const sectionRef = useRef(null)
+  const spacingRef = useRef(280) // Default mobile spacing
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024)
+  
+  useEffect(() => {
+    const updateWidth = () => {
+      setWindowWidth(window.innerWidth)
+    }
+    updateWidth()
+    window.addEventListener('resize', updateWidth)
+    return () => window.removeEventListener('resize', updateWidth)
+  }, [])
+
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ["start 0.9", "end 0.1"]
   })
 
-  const cardHeight = 350
-  const gap = 50
-  const totalSpacing = cardHeight + gap
+  // Responsive card height and gap based on screen size
+  const totalSpacing = useMemo(() => {
+    const height = windowWidth < 640 ? 250 : windowWidth < 1024 ? 280 : windowWidth < 1280 ? 300 : 350
+    const gapValue = windowWidth < 640 ? 30 : windowWidth < 1024 ? 40 : 50
+    return height + gapValue
+  }, [windowWidth])
+
+  // Update ref when spacing changes
+  useEffect(() => {
+    spacingRef.current = totalSpacing
+  }, [totalSpacing])
 
   const card1Y = useTransform(scrollYProgress, [0, 1], [0, 0])
   
-  const card2Y = useTransform(scrollYProgress, [0, 0.1, 0.15, 0.4, 1], [0, 0, 0, totalSpacing, totalSpacing])
+  // Use function-based transform that reads current totalSpacing from ref
+  const card2Y = useTransform(scrollYProgress, (latest) => {
+    const spacing = spacingRef.current
+    if (latest < 0.1) return 0
+    if (latest < 0.15) return 0
+    if (latest >= 0.4) return spacing
+    // Interpolate between 0.15 and 0.4
+    const progress = (latest - 0.15) / (0.4 - 0.15)
+    return progress * spacing
+  })
   
-  const card3Y = useTransform(scrollYProgress, [0, 0.1, 0.15, 0.4, 1], [0, 0, 0, totalSpacing * 2, totalSpacing * 2])
+  const card3Y = useTransform(scrollYProgress, (latest) => {
+    const spacing = spacingRef.current
+    if (latest < 0.1) return 0
+    if (latest < 0.15) return 0
+    if (latest >= 0.4) return spacing * 2
+    // Interpolate between 0.15 and 0.4
+    const progress = (latest - 0.15) / (0.4 - 0.15)
+    return progress * spacing * 2
+  })
 
-  // Opacity - faster return on scroll up
   const card1Opacity = useTransform(scrollYProgress, [0, 0.1], [0, 1])
   const card2Opacity = useTransform(scrollYProgress, [0, 0.08, 0.15], [0, 0, 1])
   const card3Opacity = useTransform(scrollYProgress, [0, 0.1, 0.2], [0, 0, 1])
 
-  // Text visibility - faster hide on scroll up
   const card1TextOpacity = useTransform(scrollYProgress, [0, 0.08, 0.15], [0, 0, 1])
   const card2TextOpacity = useTransform(scrollYProgress, [0, 0.1, 0.12, 0.2], [0, 0, 0, 1])
   const card3TextOpacity = useTransform(scrollYProgress, [0, 0.12, 0.15, 0.25], [0, 0, 0, 1])
 
-  // Scale animations - faster return on scroll up
   const card1Scale = useTransform(scrollYProgress, [0, 0.1, 0.15, 0.4, 1], [0.95, 0.95, 1, 1, 1])
   const card2Scale = useTransform(scrollYProgress, [0, 0.1, 0.15, 0.4, 1], [0.95, 0.95, 0.95, 1, 1])
   const card3Scale = useTransform(scrollYProgress, [0, 0.1, 0.15, 0.4, 1], [0.95, 0.95, 0.95, 0.95, 1])
 
-  // Icon scale animations - faster return on scroll up
   const icon1Scale = useTransform(scrollYProgress, [0, 0.08, 0.1, 0.2], [0, 0, 0, 1])
   const icon2Scale = useTransform(scrollYProgress, [0, 0.1, 0.15, 0.25], [0, 0, 0, 1])
   const icon3Scale = useTransform(scrollYProgress, [0, 0.12, 0.2, 0.3], [0, 0, 0, 1])
 
   return (
-    <section id="how-it-works" ref={sectionRef} className="relative bg-white py-20 mb-10 overflow-hidden">
+    <section id="how-it-works" ref={sectionRef} className="relative bg-white py-12 sm:py-16 md:py-20 mb-6 sm:mb-8 md:mb-10 overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-8"
+          className="text-center mb-6 sm:mb-8"
         >
           <h2
-            className="text-2xl md:text-3xl text-black mb-4"
+            className="text-xl sm:text-2xl md:text-3xl text-black mb-3 sm:mb-4"
             style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
           >
             How it works
           </h2>
           <p
-            className="text-3xl md:text-4xl lg:text-5xl font-semibold text-black leading-tight"
+            className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold text-black leading-tight"
             style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
           >
             Clarity starts with
@@ -98,7 +131,7 @@ export function HowItWorksSection() {
           </p>
         </motion.div>
 
-        <div className="relative max-w-xl mx-auto mt-16 min-h-[1000px] md:min-h-[1200px]">
+        <div className="relative max-w-xl mx-auto mt-8 sm:mt-12 md:mt-16 min-h-[800px] sm:min-h-[700px] md:min-h-[900px] lg:min-h-[1000px] xl:min-h-[1200px]">
           {steps.map((step, index) => {
             const Icon = step.icon
             let yTransform, opacityTransform, textOpacity, scaleTransform, iconScale
@@ -131,14 +164,14 @@ export function HowItWorksSection() {
                   scale: scaleTransform,
                   zIndex: 3 - index
                 }}
-                className={`absolute left-0 right-0 ${step.bgColor} rounded-3xl p-10 md:p-12 lg:p-16 border-2 ${step.borderColor} text-center min-h-[300px] md:min-h-[350px] flex flex-col justify-center shadow-lg hover:shadow-xl transition-shadow duration-300`}
+                className={`absolute left-0 right-0 ${step.bgColor} rounded-2xl sm:rounded-3xl p-6 sm:p-8 md:p-10 lg:p-12 xl:p-16 border-2 ${step.borderColor} text-center min-h-[250px] sm:min-h-[280px] md:min-h-[300px] lg:min-h-[350px] flex flex-col justify-center shadow-lg hover:shadow-xl transition-shadow duration-300`}
               >
                 <motion.div
-                  className="absolute top-6 left-6 w-12 h-12 rounded-full bg-black/10 flex items-center justify-center"
+                  className="absolute top-4 left-4 sm:top-6 sm:left-6 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/10 flex items-center justify-center"
                   style={{ opacity: textOpacity }}
                 >
                   <span
-                    className="text-lg font-bold text-black"
+                    className="text-base sm:text-lg font-bold text-black"
                     style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
                   >
                     {step.number}
@@ -146,19 +179,19 @@ export function HowItWorksSection() {
                 </motion.div>
 
                 <motion.div
-                  className="flex justify-center mb-6"
+                  className="flex justify-center mb-4 sm:mb-6"
                   style={{ opacity: textOpacity }}
                 >
                   <motion.div 
-                    className="w-16 h-16 rounded-full bg-black/10 flex items-center justify-center"
+                    className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full bg-black/10 flex items-center justify-center"
                     style={{ scale: iconScale }}
                   >
-                    <Icon className="w-8 h-8 text-black" />
+                    <Icon className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-black" />
                   </motion.div>
                 </motion.div>
 
                 <motion.h3
-                  className="text-2xl md:text-3xl lg:text-4xl text-black mb-4"
+                  className="text-xl sm:text-2xl md:text-3xl lg:text-4xl text-black mb-3 sm:mb-4"
                   style={{ 
                     fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif",
                     opacity: textOpacity
@@ -167,7 +200,7 @@ export function HowItWorksSection() {
                   {step.title}
                 </motion.h3>
                 <motion.p
-                  className="text-base md:text-lg text-black/70 leading-relaxed max-w-lg mx-auto"
+                  className="text-sm sm:text-base md:text-lg text-black/70 leading-relaxed max-w-lg mx-auto px-2"
                   style={{ 
                     fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif",
                     opacity: textOpacity

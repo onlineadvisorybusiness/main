@@ -136,22 +136,22 @@ export function Header({ bgColor = 'auto' }) {
   if (isTermsOrPrivacy) {
     return (
       <nav className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-8 sm:px-12 lg:px-16">
-          <div className="flex items-center justify-between h-16 gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-16">
+          <div className="flex items-center justify-between h-14 sm:h-16 gap-2 sm:gap-4">
             <div className="flex items-center flex-shrink-0">
               <Link href="/" className="flex items-center gap-1.5">
-                <h1 className="text-xl tracking-tight text-black font-normal" style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}>
-                  myfirstcheque
+                <h1 className="text-lg sm:text-xl tracking-tight text-black font-normal" style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}>
+                  Advisory Hub
                 </h1>
               </Link>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               {!isLoading && !user && (
                 <>
                   <Button
                     asChild
-                    className="bg-gray-100 hover:bg-gray-200 text-black px-5 py-2 rounded-lg text-sm font-medium transition-colors duration-150"
+                    className="bg-gray-100 hover:bg-gray-200 text-black px-2 sm:px-5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors duration-150"
                   >
                     <Link href="/auth/sign-in">
                       Sign In
@@ -159,11 +159,11 @@ export function Header({ bgColor = 'auto' }) {
                   </Button>
                   <Button
                     asChild
-                    className="bg-black hover:bg-gray-900 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors duration-150"
+                    className="bg-black hover:bg-gray-900 text-white px-2 sm:px-5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors duration-150"
                   >
-                    <Link href="/marketplace" className="flex items-center gap-2">
-                      <Rocket className="w-4 h-4" />
-                      <span>Find your expert</span>
+                    <Link href="/marketplace" className="flex items-center gap-1 sm:gap-2">
+                      <Rocket className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline">Find your expert</span>
                     </Link>
                   </Button>
                 </>
@@ -172,10 +172,11 @@ export function Header({ bgColor = 'auto' }) {
                 <>
                   <Button
                     asChild
-                    className="bg-gray-100 hover:bg-gray-200 text-black px-5 py-2 rounded-lg text-sm font-medium transition-colors duration-150"
+                    className="bg-transparent hover:bg-transparent text-gray-900 px-2 sm:px-5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors duration-150 border border-gray-600"
                   >
                     <Link href={`/${userStatus}/dashboard`}>
-                      Dashboard
+                      <span className="hidden sm:inline">View Dashboard</span>
+                      <span className="sm:hidden">View Dashboard</span>
                     </Link>
                   </Button>
                   <UserMenu />
@@ -190,12 +191,12 @@ export function Header({ bgColor = 'auto' }) {
 
   return (
     <nav className={`${styles.navClass} ${pathname === '/' ? 'border-b-0' : 'border-b border-gray-200'}`}>
-      <div className="max-w-7xl mx-auto px-8 sm:px-12 lg:px-16">
-        <div className="flex items-center justify-between h-16 gap-4">    
+      <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-16">
+        <div className="flex items-center justify-between h-14 sm:h-16 gap-2 sm:gap-4">    
           <div className="flex items-center flex-shrink-0">
             <Link href="/" className="flex items-center">
-              <h1 className="text-xl tracking-tight text-black font-normal" style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}>
-                myfirstcheque
+              <h1 className={`text-lg sm:text-xl tracking-tight font-normal ${pathname === '/' ? 'text-white' : 'text-black'}`} style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}>
+                Advisory Hub
               </h1>
             </Link>
           </div>
@@ -203,7 +204,7 @@ export function Header({ bgColor = 'auto' }) {
           {pathname === '/' && (
             <div 
               ref={searchContainerRef} 
-              className="flex-1 mx-4 hidden md:block relative flex justify-center"
+              className="flex-1 mx-2 sm:mx-4 hidden md:block relative flex justify-center"
             >
               <form onSubmit={handleSearch} className={`relative transition-all duration-300 ease-in-out ${
                 isHeaderSearchExpanded ? 'w-full max-w-3xl' : 'w-full max-w-lg mx-auto'
@@ -275,38 +276,39 @@ export function Header({ bgColor = 'auto' }) {
             </div>
           )}
 
-          <div className="flex items-center space-x-4 flex-shrink-0"> 
+          <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0"> 
             {!isLoading && user && (
               <>
                 {userStatus === 'expert' ? (
                   pathname === '/marketplace' ? (
                     <Button
                       asChild
-                      className="bg-gray-950 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-150"
+                      className="bg-transparent hover:bg-transparent text-gray-900 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors duration-150 border border-gray-600"
                     >
                       <Link href={`/${userStatus}/dashboard`} className="flex items-center">
-                        <LayoutDashboardIcon className="w-4 h-4 mr-2" />
-                        View Dashboard
+                        <LayoutDashboardIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+                        <span className="hidden sm:inline">View Dashboard</span>
                       </Link>
                     </Button>
                   ) : (
                     <Button
                       asChild
-                      className="bg-white hover:bg-gray-50 text-gray-900 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150 cursor-pointer"
+                      className="bg-white hover:bg-gray-50 text-gray-900 px-2 sm:px-5 py-1.5 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-colors duration-150 cursor-pointer"
                     >
-                    <Link href="/marketplace">
-                     <Rocket className="w-4 h-4 mr-1" />
-                     <span>Find your expert</span>
+                    <Link href="/marketplace" className="flex items-center">
+                     <Rocket className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1" />
+                     <span className="hidden sm:inline">Find your expert</span>
                     </Link>
                   </Button>
                   )
                 ) : (
                   <Button
                     asChild
-                    className="bg-gray-950 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-150"
+                    className={`bg-transparent hover:bg-transparent px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors duration-150 ${pathname === '/' ? 'text-white border border-gray-200' : 'text-gray-900 border border-gray-600'}`}
                   >
                     <Link href="/become-an-expert">
-                      Become an Expert
+                      <span className="hidden sm:inline">Become an Expert</span>
+                      <span className="sm:hidden">Expert</span>
                     </Link>
                   </Button>
                 )}
@@ -317,20 +319,20 @@ export function Header({ bgColor = 'auto' }) {
               <>
                 <Button
                   asChild
-                  className="bg-transparent hover:bg-transparent text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150 cursor-pointer border border-white/30"
+                  className="bg-transparent hover:bg-transparent text-white px-2 sm:px-5 py-1.5 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-colors duration-150 cursor-pointer border border-white/30"
                 >
-                  <Link href="/auth/sign-in">
-                    Sign In
-                    <LogIn className="w-4 h-4 mr-2" />
+                  <Link href="/auth/sign-in" className="flex items-center">
+                    <span className="hidden sm:inline">Sign In</span>
+                    <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:ml-2" />
                   </Link>
                 </Button>
                 <Button
                   asChild
-                  className="bg-white hover:bg-gray-50 text-gray-900 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150 cursor-pointer"
+                  className="bg-white hover:bg-gray-50 text-gray-900 px-2 sm:px-5 py-1.5 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-colors duration-150 cursor-pointer"
                 >
-                  <Link href="/marketplace">
-                    <Rocket className="w-4 h-4 mr-1" />
-                     <span>Find your expert</span>
+                  <Link href="/marketplace" className="flex items-center">
+                    <Rocket className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Find your expert</span>
                   </Link>
                 </Button>
               </>

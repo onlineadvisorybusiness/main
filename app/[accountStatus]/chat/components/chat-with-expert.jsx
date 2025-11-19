@@ -75,7 +75,10 @@ export default function ChatWithExpert() {
   const mediaRecorderRef = useRef(null)
   const audioRef = useRef(null)
   const recordingIntervalRef = useRef(null)
-  const notifiedMessagesRef = useRef(new Set()) // Track notified message IDs to prevent duplicates
+  const notifiedMessagesRef = useRef(new Set())
+  const apiSentMessagesRef = useRef(new Set()) // Track messages sent via API to prevent socket duplicates
+  const socketHandlersRef = useRef({}) // Store socket handlers to prevent duplicate registrations
+  const isSendingRef = useRef(false) // Prevent multiple simultaneous sends
 
   // Mark all messages as read when conversation is opened
   const markAllMessagesAsRead = useCallback(async () => {
@@ -613,6 +616,12 @@ export default function ChatWithExpert() {
       }))
       
       if (String(selectedExpert?.conversationId) === String(data.conversationId)) {
+        const messageId = String(data.message.id)
+        
+        if (apiSentMessagesRef.current.has(messageId)) {
+          return
+        }
+        
         const newMessage = {
           id: data.message.id,
           senderId: data.message.senderId,
@@ -633,7 +642,7 @@ export default function ChatWithExpert() {
         }
         
         setMessages(prev => {
-          const messageExists = prev.some(msg => String(msg.id) === String(newMessage.id))
+          const messageExists = prev.some(msg => String(msg.id) === messageId)
           if (!messageExists) {
             const updated = [...prev, newMessage].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
             setGroupedMessages(groupMessagesByDate(updated))
@@ -697,44 +706,67 @@ export default function ChatWithExpert() {
       }
     }
 
-    socket.on('new_message', handleNewMessage)
-    socket.on('message_notification', handleMessageNotification)
-    socket.on('messages_read', handleMessagesRead)
-    socket.on('typing_start', handleTypingStart)
-    socket.on('typing_stop', handleTypingStop)
-    socket.on('message_reaction', handleMessageReaction)
+    // Store handlers in ref to prevent duplicate registrations
+    socketHandlersRef.current = {
+      handleNewMessage,
+      handleMessageNotification,
+      handleMessagesRead,
+      handleTypingStart,
+      handleTypingStop,
+      handleMessageReaction
+    }
+
+    // Remove old listeners first to prevent duplicates
+    if (socket) {
+      socket.off('new_message', socketHandlersRef.current.handleNewMessage)
+      socket.off('message_notification', socketHandlersRef.current.handleMessageNotification)
+      socket.off('messages_read', socketHandlersRef.current.handleMessagesRead)
+      socket.off('typing_start', socketHandlersRef.current.handleTypingStart)
+      socket.off('typing_stop', socketHandlersRef.current.handleTypingStop)
+      socket.off('message_reaction', socketHandlersRef.current.handleMessageReaction)
+      
+      // Register new listeners
+      socket.on('new_message', handleNewMessage)
+      socket.on('message_notification', handleMessageNotification)
+      socket.on('messages_read', handleMessagesRead)
+      socket.on('typing_start', handleTypingStart)
+      socket.on('typing_stop', handleTypingStop)
+      socket.on('message_reaction', handleMessageReaction)
+    }
 
     return () => {
-      socket.off('new_message', handleNewMessage)
-      socket.off('message_notification', handleMessageNotification)
-      socket.off('messages_read', handleMessagesRead)
-      socket.off('typing_start', handleTypingStart)
-      socket.off('typing_stop', handleTypingStop)
-      socket.off('message_reaction', handleMessageReaction)
+      if (socket) {
+        socket.off('new_message', handleNewMessage)
+        socket.off('message_notification', handleMessageNotification)
+        socket.off('messages_read', handleMessagesRead)
+        socket.off('typing_start', handleTypingStart)
+        socket.off('typing_stop', handleTypingStop)
+        socket.off('message_reaction', handleMessageReaction)
+      }
     }
-  }, [socket, isConnected, selectedExpert, currentUser])
+  }, [socket, isConnected, selectedExpert?.conversationId, currentUser?.id])
 
   // Join/leave conversation when expert is selected
   useEffect(() => {
     if (selectedExpert?.conversationId && isConnected && socket) {
-      joinConversation(selectedExpert.conversationId)
+      const conversationId = selectedExpert.conversationId
+      joinConversation(conversationId)
       
       const handleJoinedConversation = (data) => {}
-      socket.on('joined_conversation', handleJoinedConversation)
-      
       const handleReconnect = () => {
         if (selectedExpert?.conversationId) {
-          joinConversation(selectedExpert.conversationId)
+          joinConversation(conversationId)
         }
       }
       
+      socket.on('joined_conversation', handleJoinedConversation)
       socket.on('connect', handleReconnect)
 
       return () => {
         socket.off('connect', handleReconnect)
         socket.off('joined_conversation', handleJoinedConversation)
-        if (selectedExpert?.conversationId && isConnected) {
-          leaveConversation(selectedExpert.conversationId)
+        if (conversationId && isConnected) {
+          leaveConversation(conversationId)
         }
       }
     }
@@ -809,9 +841,15 @@ export default function ChatWithExpert() {
   }, [messages, messageDurations])
 
   const handleSendMessage = async () => {
+    // Prevent multiple simultaneous sends
+    if (isSendingRef.current) {
+      return
+    }
+    
     const trimmedMessage = message.trim()
     
     if ((trimmedMessage || attachments.length > 0) && selectedExpert && selectedExpert.conversationId) {
+      isSendingRef.current = true
       try {
         let mediaUrl = null
         
@@ -895,6 +933,9 @@ export default function ChatWithExpert() {
               } : null
             }
             
+            // Mark this message as sent via API to prevent socket from adding it again
+            apiSentMessagesRef.current.add(String(newMessage.id))
+            
             setMessages(prev => {
               const messageExists = prev.some(msg => String(msg.id) === String(newMessage.id))
               if (!messageExists) {
@@ -904,6 +945,11 @@ export default function ChatWithExpert() {
               }
               return prev
             })
+            
+            // Clean up after 5 seconds to prevent memory leak
+            setTimeout(() => {
+              apiSentMessagesRef.current.delete(String(newMessage.id))
+            }, 5000)
             
             setExperts(prev => prev.map(expert => 
               String(expert.conversationId) === String(selectedExpert.conversationId)
@@ -923,6 +969,9 @@ export default function ChatWithExpert() {
           }
         }
       } catch (error) {
+        console.error('Error sending message:', error)
+      } finally {
+        isSendingRef.current = false
       }
     }
   }
@@ -1699,8 +1748,8 @@ export default function ChatWithExpert() {
 
   if (loading) {
     return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="max-w-7xl mx-auto h-full">
+    <div className="h-[calc(100vh-200px)] min-h-[470px] max-h-[800px] bg-gray-100">
+      <div className="max-w-6xl mx-auto h-full">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 h-full">
             <div className="lg:col-span-1 bg-white border-r border-gray-200">
               <div className="h-full flex flex-col">
@@ -1745,7 +1794,7 @@ export default function ChatWithExpert() {
   }
 
   return (
-    <div className="h-[470px] bg-gray-100 flex justify-center items-center">
+    <div className="h-[calc(100vh-200px)] min-h-[470px] max-h-[800px] bg-gray-100 flex justify-center items-center">
       <div className="w-full max-w-6xl mx-auto bg-white flex h-full">
         <div className="w-1/3 border-r border-gray-300 flex flex-col bg-white">
           <div className="bg-gray-50 px-4 py-3 border-b border-gray-300 flex items-center justify-between">

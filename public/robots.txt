@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /auth/
+Disallow: /expert/
+Disallow: /learner/
+
+Sitemap: https://www.myfirstcheque.com/sitemap.xml
+

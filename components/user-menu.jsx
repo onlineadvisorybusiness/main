@@ -25,9 +25,11 @@ export function UserMenu() {
           if (response.ok) {
             const data = await response.json()
             setUserStatus(data.user?.accountStatus || 'learner')
+          } else {
+            setUserStatus('learner')
           }
         } catch (error) {
-          setUserStatus('learner') // Default to learner on error
+          setUserStatus('learner')
         } finally {
           setIsLoading(false)
         }
@@ -92,7 +94,7 @@ export function UserMenu() {
           </div>
 
           <div className="py-2">
-            {!isLoading && userStatus && (
+            {!isLoading && (userStatus === 'expert' || userStatus === 'learner') && (
               <Link href={userStatus === 'expert' ? '/expert/dashboard' : '/learner/dashboard'} onClick={() => setIsOpen(false)}>
                 <div className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors duration-150 cursor-pointer">
                   <div className="flex items-center space-x-3">

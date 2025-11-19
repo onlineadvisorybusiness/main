@@ -127,7 +127,6 @@ export async function GET(request, { params }) {
   }
 }
 
-// POST - Send a new message
 export async function POST(request, { params }) {
   try {
     const { userId } = await auth()
@@ -174,12 +173,10 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
     }
 
-    // Get the other participant
     const otherParticipantId = conversation.participant1Id === user.id 
       ? conversation.participant2Id 
       : conversation.participant1Id
 
-    // Check if there's any booking between these users (any status)
     const hasBooking = await prisma.booking.findFirst({
       where: {
         OR: [
@@ -270,10 +267,7 @@ export async function POST(request, { params }) {
           readAt: message.readAt?.toISOString ? message.readAt.toISOString() : message.readAt,
           editedAt: message.editedAt?.toISOString ? message.editedAt.toISOString() : message.editedAt
         }
-        
-        const conversationRoom = io.sockets.adapter.rooms.get(`conversation:${normalizedConversationId}`)
-        const personalRoom = io.sockets.adapter.rooms.get(`user:${otherParticipantId}`)
-                
+
         io.to(`conversation:${normalizedConversationId}`).emit('new_message', {
           message: messageForSocket,
           conversationId: normalizedConversationId
