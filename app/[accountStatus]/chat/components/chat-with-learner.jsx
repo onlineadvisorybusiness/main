@@ -34,6 +34,7 @@ export default function ChatWithLearner() {
   const [editingMessage, setEditingMessage] = useState(null)
   const [editText, setEditText] = useState('')
   const [deleteDialog, setDeleteDialog] = useState({ open: false, messageId: null, type: null })
+  const [errorDialog, setErrorDialog] = useState({ open: false, title: '', message: '', details: '' })
   const [recordingTime, setRecordingTime] = useState(0)
   const [audioBlob, setAudioBlob] = useState(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -56,15 +57,12 @@ export default function ChatWithLearner() {
   const [isSearching, setIsSearching] = useState(false)
   const [messageReactions, setMessageReactions] = useState({})
   const [hoveredMessage, setHoveredMessage] = useState(null)
-  const [replyingTo, setReplyingTo] = useState(null)
-  // Pinned and starred messages state
+  const [replyingTo, setReplyingTo] = useState(null)  
   const [pinnedMessages, setPinnedMessages] = useState([])
   const [starredMessages, setStarredMessages] = useState(new Set())
   const [showPinnedMessages, setShowPinnedMessages] = useState(false)
   const [showStarredMessages, setShowStarredMessages] = useState(false)
-  // Message grouping state
   const [groupedMessages, setGroupedMessages] = useState({})
-  // Client-side only state for test button
   const [isClient, setIsClient] = useState(false)
   const typingTimeoutRef = useRef(null)
   const messagesEndRef = useRef(null)
@@ -923,14 +921,17 @@ export default function ChatWithLearner() {
             setTimeout(() => {
               messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
             }, 100)
-            
-            // Note: The API route already emits the message via socket for real-time delivery
-            // No need to send again via socket to avoid duplicates
           } else {  
           }
         }
       } catch (error) {
         console.error('Error sending message:', error)
+        setErrorDialog({
+          open: true,
+          title: 'Error',
+          message: 'Failed to send message. Please try again later.',
+          details: error.message || ''
+        })
       } finally {
         isSendingRef.current = false
       }
@@ -1237,7 +1238,12 @@ export default function ChatWithLearner() {
       }, 1000)
       
     } catch (error) {
-      alert('Unable to access microphone. Please check your permissions.')
+      setErrorDialog({
+        open: true,
+        title: 'Microphone Access Error',
+        message: 'Unable to access microphone. Please check your permissions.',
+        details: ''
+      })
     }
   }
   
@@ -2676,6 +2682,26 @@ export default function ChatWithLearner() {
                className="bg-red-600 hover:bg-red-700"
              >
                Delete
+             </AlertDialogAction>
+           </AlertDialogFooter>
+         </AlertDialogContent>
+       </AlertDialog>
+
+       {/* Error Dialog */}
+       <AlertDialog open={errorDialog.open} onOpenChange={(open) => setErrorDialog({ ...errorDialog, open })}>
+         <AlertDialogContent className="max-w-md">
+           <AlertDialogHeader>
+             <AlertDialogTitle>{errorDialog.title}</AlertDialogTitle>
+             <AlertDialogDescription className="space-y-2">
+               <p>{errorDialog.message}</p>
+               {errorDialog.details && (
+                 <p className="text-sm text-gray-600 whitespace-pre-line">{errorDialog.details}</p>
+               )}
+             </AlertDialogDescription>
+           </AlertDialogHeader>
+           <AlertDialogFooter>
+             <AlertDialogAction onClick={() => setErrorDialog({ open: false, title: '', message: '', details: '' })}>
+               OK
              </AlertDialogAction>
            </AlertDialogFooter>
          </AlertDialogContent>

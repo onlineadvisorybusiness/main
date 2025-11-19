@@ -34,6 +34,7 @@ export default function ChatWithExpert() {
   const [editingMessage, setEditingMessage] = useState(null)
   const [editText, setEditText] = useState('')
   const [deleteDialog, setDeleteDialog] = useState({ open: false, messageId: null, type: null })
+  const [errorDialog, setErrorDialog] = useState({ open: false, title: '', message: '', details: '' })
   const [recordingTime, setRecordingTime] = useState(0)
   const [audioBlob, setAudioBlob] = useState(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -1897,13 +1898,28 @@ export default function ChatWithExpert() {
                         
                         if (response.status === 403) {
                           // Booking required error
-                          alert(`${errorMessage}\n\n${errorDetails}\n\nPlease complete a booking with this expert first to start chatting.`)
+                          setErrorDialog({
+                            open: true,
+                            title: 'Booking Required',
+                            message: errorMessage,
+                            details: `${errorDetails}\n\nPlease complete a booking with this expert first to start chatting.`
+                          })
                         } else {
-                          alert(`${errorMessage}\n\n${errorDetails}`)
+                          setErrorDialog({
+                            open: true,
+                            title: 'Error',
+                            message: errorMessage,
+                            details: errorDetails
+                          })
                         }
                       }
                     } catch (error) {
-                      alert(`Failed to start conversation. Please try again later.\n\nError: ${error.message}`)
+                      setErrorDialog({
+                        open: true,
+                        title: 'Error',
+                        message: 'Failed to start conversation. Please try again later.',
+                        details: error.message
+                      })
                     } finally {
                       setLoading(false)
                     }
@@ -2771,7 +2787,26 @@ export default function ChatWithExpert() {
          </AlertDialogContent>
        </AlertDialog>
 
-       {/* Search Modal */}
+       {/* Error Dialog */}
+       <AlertDialog open={errorDialog.open} onOpenChange={(open) => setErrorDialog({ ...errorDialog, open })}>
+         <AlertDialogContent className="max-w-md">
+           <AlertDialogHeader>
+             <AlertDialogTitle>{errorDialog.title}</AlertDialogTitle>
+             <AlertDialogDescription className="space-y-2">
+               <p>{errorDialog.message}</p>
+               {errorDialog.details && (
+                 <p className="text-sm text-gray-600 whitespace-pre-line">{errorDialog.details}</p>
+               )}
+             </AlertDialogDescription>
+           </AlertDialogHeader>
+           <AlertDialogFooter>
+             <AlertDialogAction onClick={() => setErrorDialog({ open: false, title: '', message: '', details: '' })}>
+               OK
+             </AlertDialogAction>
+           </AlertDialogFooter>
+         </AlertDialogContent>
+       </AlertDialog>
+
        <AlertDialog open={showSearchModal} onOpenChange={setShowSearchModal}>
         <AlertDialogContent className="max-w-2xl max-h-[80vh] overflow-hidden">
           <AlertDialogHeader>
@@ -2792,7 +2827,6 @@ export default function ChatWithExpert() {
           </AlertDialogHeader>
            
            <div className="space-y-4">
-             {/* Search Input */}
              <div className="flex gap-2">
                <Input
                  value={messageSearchQuery}
@@ -2806,7 +2840,6 @@ export default function ChatWithExpert() {
                </Button>
              </div>
 
-             {/* Search Filters */}
              <div className="flex gap-4 text-sm">
                <Select value={searchFilters.type} onValueChange={(value) => setSearchFilters(prev => ({ ...prev, type: value }))}>
                  <SelectTrigger className="w-32">
@@ -2844,8 +2877,7 @@ export default function ChatWithExpert() {
                  </SelectContent>
                </Select>
              </div>
-
-             {/* Search Results */}
+               
              <div className="max-h-96 overflow-y-auto border rounded-lg">
                {searchResults.length > 0 ? (
                  <div className="space-y-2 p-4">
