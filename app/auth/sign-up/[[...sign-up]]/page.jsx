@@ -5,8 +5,6 @@ import { SignUp } from '@clerk/nextjs'
 import NextImage from 'next/image'
 import { ArrowLeft } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
-import { SmoothReveal } from '@/components/animations'
 
 export default function SignUpPage() {
   const router = useRouter()
@@ -21,29 +19,19 @@ export default function SignUpPage() {
   }
   
   return (
-    <div className="h-screen flex relative">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3 }}
+    <div className="min-h-screen flex relative">
+      <Button 
+        onClick={handleBack}
+        className="absolute top-6 left-6 z-[100] flex items-center space-x-2 bg-white/95 backdrop-blur-md hover:bg-white transition-all duration-200 px-4 py-2.5 rounded-lg shadow-lg border border-gray-200/50 hover:shadow-xl cursor-pointer"
+        type="button"
       >
-        <Button 
-          onClick={handleBack}
-          className="absolute top-6 left-6 z-10 flex items-center space-x-2 bg-white/95 backdrop-blur-md hover:bg-white transition-all duration-200 px-4 py-2.5 rounded-lg shadow-lg border border-gray-200/50 hover:shadow-xl"
-        >
-          <ArrowLeft className="w-4 h-4 text-gray-700" />
-          <span className="text-gray-700 font-medium text-sm" style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}>
-            Back
-          </span>
-        </Button>
-      </motion.div>
+        <ArrowLeft className="w-4 h-4 text-gray-700" />
+        <span className="text-gray-700 font-medium text-sm" style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}>
+          Back
+        </span>
+      </Button>
 
-      <motion.div 
-        className="hidden lg:flex lg:w-1/2 relative"
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
-      >
+      <div className="hidden lg:flex lg:w-1/2 relative">
         <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-black/20 to-transparent z-10" />
         <NextImage 
           src="/pexels-george-milton-6953849.jpg" 
@@ -53,29 +41,26 @@ export default function SignUpPage() {
           priority
           quality={100}
         />
-      </motion.div>
+      </div>
 
-      <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-white via-gray-50 to-white p-8 lg:p-12">
+      <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-white via-gray-50 to-white p-6 lg:p-4 min-h-screen overflow-y-auto">
         <div className="w-full max-w-md">
-          <SmoothReveal delay={0.2} duration={0.6} once={false}>
-            <div className="mb-8 lg:mb-10">
-              <h1 
-                className="text-4xl md:text-5xl font-semibold text-gray-900 mb-3 leading-tight"
-                style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
-              >
-                Sign Up
-              </h1>
-              <p 
-                className="text-gray-600 text-base leading-relaxed"
-                style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
-              >
-                Enter your details to join the community
-              </p>
-            </div>
-          </SmoothReveal>
+          <div className="mb-8 lg:mb-10">
+            <h1 
+              className="text-4xl md:text-5xl font-semibold text-gray-900 mb-3 leading-tight"
+              style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
+            >
+              Sign Up
+            </h1>
+            <p 
+              className="text-gray-600 text-base leading-relaxed"
+              style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
+            >
+              Enter your details to join the community
+            </p>
+          </div>
           
-          <SmoothReveal delay={0.3} duration={0.6} once={false}>
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 lg:p-0 lg:shadow-none lg:border-0">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 lg:p-0 lg:shadow-none lg:border-0">
               <SignUp 
                 appearance={{
                   elements: {
@@ -101,8 +86,7 @@ export default function SignUpPage() {
                 redirectUrl="/marketplace"
                 signInUrl="/auth/sign-in"
               />
-            </div>
-          </SmoothReveal>
+          </div>
         </div>
       </div>
     </div>
