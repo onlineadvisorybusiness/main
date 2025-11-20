@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { socketManager, getSocketIO } from '@/lib/socket'
+import { sanitizeMessageContent } from '@/lib/phone-filter'
 
 export async function GET(request, { params }) {
   try {
@@ -143,7 +144,12 @@ export async function POST(request, { params }) {
     }
 
     const body = await request.json()
-    const { content, messageType, mediaUrl, audioDuration, parentMessageId, replyToMessageId } = body
+    let { content, messageType, mediaUrl, audioDuration, parentMessageId, replyToMessageId } = body
+
+    // Sanitize content to remove phone numbers
+    if (content && typeof content === 'string') {
+      content = sanitizeMessageContent(content)
+    }
 
     if (!content && !mediaUrl) {
       return NextResponse.json({ 

@@ -14,6 +14,7 @@ import { convertTime, getCurrentTimeInTimezone, timezones } from '@/lib/timezone
 import { Star, Crown, Clock, CheckCircle, Timer, Video, DollarSign, VerifiedIcon, User, Mail, Calendar as CalendarIcon, ArrowLeft, CreditCard, BadgeCheck } from 'lucide-react'
 import NextImage from 'next/image'
 import { Separator } from '@/components/ui/separator'
+import { toast } from 'sonner'
 
 export function BookingSection({ expert, sessions = [] }) {
   const { user } = useUser()
@@ -447,7 +448,10 @@ export function BookingSection({ expert, sessions = [] }) {
 
       if (response.ok) {
         const result = await response.json()
-        alert(`Booking confirmed successfully! Your session has been scheduled and added to your calendar. Meeting Link: ${result.booking.meetingLink}`)
+        toast.success('Booking confirmed successfully!', {
+          description: `Your session has been scheduled and added to your calendar. Meeting Link: ${result.booking.meetingLink}`,
+          duration: 5000,
+        })
         // Reset the form and refresh availability
         setSelectedTimeSlot(null)
         setSelectedDate(null)
@@ -455,10 +459,14 @@ export function BookingSection({ expert, sessions = [] }) {
         fetchExpertAvailability()
       } else {
         const error = await response.json()
-        alert(`Booking failed: ${error.error}`)
+        toast.error('Booking failed', {
+          description: error.error || 'Please try again.',
+        })
       }
     } catch (error) {
-      alert('An error occurred while creating your booking. Please try again.')
+      toast.error('An error occurred', {
+        description: 'Please try again later.',
+      })
     } finally {
       setBooking(false)
     }

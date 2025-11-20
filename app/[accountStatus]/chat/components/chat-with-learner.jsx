@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { useSocket } from '@/hooks/useSocket'
+import { sanitizeMessageContent } from '@/lib/phone-filter'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -75,6 +76,7 @@ export default function ChatWithLearner() {
   const apiSentMessagesRef = useRef(new Set()) // Track messages sent via API to prevent socket duplicates
   const socketHandlersRef = useRef({}) // Store socket handlers to prevent duplicate registrations
   const isSendingRef = useRef(false) // Prevent multiple simultaneous sends
+  const lastSendTimeRef = useRef(0) // Track last send time to prevent rapid double-clicks
 
   const markAllMessagesAsRead = useCallback(async () => {
     if (selectedLearner?.conversationId && currentUser) {
@@ -126,7 +128,6 @@ export default function ChatWithLearner() {
     setIsClient(true)
   }, [])
 
-  // Request notification permission on mount
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'default') {
@@ -254,18 +255,20 @@ export default function ChatWithLearner() {
         
         
         if (conversationsData.success) {
-          const learnersFromConversations = conversationsData.conversations.map(conv => ({
-            id: conv.otherParticipant.id,
-            name: `${conv.otherParticipant.firstName || ''} ${conv.otherParticipant.lastName || ''}`.trim() || conv.otherParticipant.username,
-            username: conv.otherParticipant.username,
-            avatar: conv.otherParticipant.avatar || '/default-avatar.png',
-            industry: conv.otherParticipant.accountStatus === 'expert' ? 'Expert' : 'Learner',
-            lastMessage: conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleString() : 'No messages',
-            online: false, 
-            unreadCount: conv.unreadCount,
-            lastMessagePreview: conv.lastMessage || 'No messages yet',
-            conversationId: conv.id
-          }))
+          const learnersFromConversations = conversationsData.conversations
+            .filter(conv => conv.otherParticipant.accountStatus === 'learner')
+            .map(conv => ({
+              id: conv.otherParticipant.id,
+              name: `${conv.otherParticipant.firstName || ''} ${conv.otherParticipant.lastName || ''}`.trim() || conv.otherParticipant.username,
+              username: conv.otherParticipant.username,
+              avatar: conv.otherParticipant.avatar || '/default-avatar.png',
+              industry: 'Learner',
+              lastMessage: conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleString() : 'No messages',
+              online: false, 
+              unreadCount: conv.unreadCount,
+              lastMessagePreview: conv.lastMessage || 'No messages yet',
+              conversationId: conv.id
+            }))
           
           setLearners(learnersFromConversations)
         } else {
@@ -295,7 +298,7 @@ export default function ChatWithLearner() {
               id: msg.id,
               senderId: msg.senderId,
               senderName: `${msg.sender.firstName || ''} ${msg.sender.lastName || ''}`.trim() || msg.sender.username,
-              content: msg.content,
+              content: sanitizeMessageContent(msg.content || ''),
               timestamp: new Date(msg.createdAt),
               isExpert: String(msg.senderId) === String(currentUser?.id), // If sender is current user (learner), message goes on right 
               seen: msg.isRead,
@@ -305,7 +308,7 @@ export default function ChatWithLearner() {
               audioDuration: msg.audioDuration,
               replyTo: msg.replyToMessage ? {
                 id: msg.replyToMessage.id,
-                content: msg.replyToMessage.content,
+                content: sanitizeMessageContent(msg.replyToMessage.content || ''),
                 senderName: `${msg.replyToMessage.sender.firstName || ''} ${msg.replyToMessage.sender.lastName || ''}`.trim() || msg.replyToMessage.sender.username
               } : null
             }))
@@ -431,7 +434,7 @@ export default function ChatWithLearner() {
             conversationName = learner.name || senderName
             return {
               ...learner,
-              lastMessagePreview: data.message?.content || (data.message?.messageType === 'image' ? 'Image' : data.message?.messageType === 'document' ? 'Document' : 'Message'),
+              lastMessagePreview: sanitizeMessageContent(data.message?.content || '') || (data.message?.messageType === 'image' ? 'Image' : data.message?.messageType === 'document' ? 'Document' : 'Message'),
               lastMessage: new Date().toLocaleString(),
               unreadCount: isCurrentConversation ? 0 : (String(data.message?.senderId) === String(currentUser?.id) ? learner.unreadCount : learner.unreadCount + 1)
             }
@@ -441,10 +444,8 @@ export default function ChatWithLearner() {
         return updated
       })
       
-      // Show notifications if message is from another user (only if NOT current conversation)
-      // Current conversation messages are handled in handleMessageNotification
       if (isFromOtherUser && data.message && !isCurrentConversation) {
-        const messagePreview = data.message.content || 
+        const messagePreview = sanitizeMessageContent(data.message.content || '') || 
           (data.message.messageType === 'image' ? '📷 Image' : 
            data.message.messageType === 'document' ? '📄 Document' : 
            data.message.messageType === 'audio' ? '🎤 Audio' : 
@@ -466,7 +467,7 @@ export default function ChatWithLearner() {
           id: data.message.id,
           senderId: data.message.senderId,
           senderName: `${data.message.sender?.firstName || ''} ${data.message.sender?.lastName || ''}`.trim() || data.message.sender?.username || 'Unknown',
-          content: data.message.content,
+          content: sanitizeMessageContent(data.message.content || ''),
           timestamp: new Date(data.message.createdAt),
           isExpert: String(data.message.senderId) === String(currentUser?.id),
           seen: data.message.isRead || false,
@@ -476,7 +477,7 @@ export default function ChatWithLearner() {
           audioDuration: data.message.audioDuration,
           replyTo: data.message.replyToMessage ? {
             id: data.message.replyToMessage.id,
-            content: data.message.replyToMessage.content,
+            content: sanitizeMessageContent(data.message.replyToMessage.content || ''),
             senderName: `${data.message.replyToMessage.sender?.firstName || ''} ${data.message.replyToMessage.sender?.lastName || ''}`.trim() || data.message.replyToMessage.sender?.username || 'Unknown'
           } : null
         }
@@ -539,7 +540,7 @@ export default function ChatWithLearner() {
         if (isCurrentConversation) {
           // Show notifications for current conversation messages from other users
           if (isFromOtherUser && data.message) {
-            const messagePreview = data.message.content || 
+            const messagePreview = sanitizeMessageContent(data.message.content || '') || 
               (data.message.messageType === 'image' ? '📷 Image' : 
                data.message.messageType === 'document' ? '📄 Document' : 
                data.message.messageType === 'audio' ? '🎤 Audio' : 
@@ -558,7 +559,7 @@ export default function ChatWithLearner() {
           
           return { 
             ...learner, 
-            lastMessagePreview: data.message.content,
+            lastMessagePreview: sanitizeMessageContent(data.message.content || ''),
             lastMessage: new Date().toLocaleString(),
             // Only increment unread count if this conversation is not currently selected
             unreadCount: String(selectedLearner?.conversationId) === String(data.conversationId) ? 0 : learner.unreadCount + 1
@@ -580,7 +581,7 @@ export default function ChatWithLearner() {
           id: data.message.id,
           senderId: data.message.senderId,
           senderName: `${data.message.sender?.firstName || ''} ${data.message.sender?.lastName || ''}`.trim() || data.message.sender?.username || 'Unknown',
-          content: data.message.content,
+          content: sanitizeMessageContent(data.message.content || ''),
           timestamp: new Date(data.message.createdAt),
           isExpert: String(data.message.senderId) === String(currentUser?.id),
           seen: data.message.isRead || false,
@@ -590,7 +591,7 @@ export default function ChatWithLearner() {
           audioDuration: data.message.audioDuration,
           replyTo: data.message.replyToMessage ? {
             id: data.message.replyToMessage.id,
-            content: data.message.replyToMessage.content,
+            content: sanitizeMessageContent(data.message.replyToMessage.content || ''),
             senderName: `${data.message.replyToMessage.sender?.firstName || ''} ${data.message.replyToMessage.sender?.lastName || ''}`.trim() || data.message.replyToMessage.sender?.username || 'Unknown'
           } : null
         }
@@ -796,8 +797,8 @@ export default function ChatWithLearner() {
   }, [messages, messageDurations])
 
   const handleSendMessage = async () => {
-    // Prevent multiple simultaneous sends
-    if (isSendingRef.current) {
+    const now = Date.now()
+    if (isSendingRef.current || (now - lastSendTimeRef.current < 500)) {
       return
     }
     
@@ -805,11 +806,55 @@ export default function ChatWithLearner() {
     
     if ((trimmedMessage || attachments.length > 0) && selectedLearner && selectedLearner.conversationId) {
       isSendingRef.current = true
+      lastSendTimeRef.current = now
+      
+      // Store original values before clearing
+      const messageToSend = trimmedMessage
+      const attachmentsToSend = [...attachments]
+      const replyToSend = replyingTo
+      
+      // Clear input immediately for instant feedback
+      setMessage('')
+      setAttachments([])
+      setShowEmojiPicker(false)
+      setReplyingTo(null)
+      
+      // Create optimistic message immediately
+      const tempMessageId = `temp-${Date.now()}-${Math.random()}`
+      const optimisticMessage = {
+        id: tempMessageId,
+        senderId: currentUser?.id,
+        senderName: `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim() || currentUser?.username || 'You',
+        content: sanitizeMessageContent(messageToSend || ''),
+        timestamp: new Date(),
+        isExpert: true,
+        seen: false,
+        type: 'text',
+        mediaUrl: null,
+        audioDuration: null,
+        replyTo: replyToSend ? {
+          id: replyToSend.id,
+          content: replyToSend.content,
+          senderName: replyToSend.senderName
+        } : null,
+        isOptimistic: true
+      }
+      
+      // Add optimistic message immediately
+      setMessages(prev => {
+        const updated = [...prev, optimisticMessage].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+        setGroupedMessages(groupMessagesByDate(updated))
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+        }, 50)
+        return updated
+      })
+      
       try {
         let mediaUrl = null
         
-        if (attachments.length > 0) {
-          for (const attachment of attachments) {
+        if (attachmentsToSend.length > 0) {
+          for (const attachment of attachmentsToSend) {
             if ((attachment.type === 'image' || attachment.type === 'document') && attachment.file) {
               const formData = new FormData()
               formData.append('file', attachment.file)
@@ -823,7 +868,7 @@ export default function ChatWithLearner() {
               
               if (uploadData.success) {
                 mediaUrl = uploadData.url
-                break // For now, only send the first file
+                break 
               } else {
               }
             }
@@ -831,77 +876,83 @@ export default function ChatWithLearner() {
         }
 
         let messageType = 'text'
-        let messageContent = trimmedMessage
+        let messageContent = messageToSend
         
-        if (mediaUrl && attachments.length > 0) {
-          const attachment = attachments[0]
+        if (mediaUrl && attachmentsToSend.length > 0) {
+          const attachment = attachmentsToSend[0]
           if (attachment.type === 'image') {
             messageType = 'image'
-            messageContent = trimmedMessage || 'Image'
+            messageContent = messageToSend || 'Image'
           } else if (attachment.type === 'document') {
             messageType = 'document'
-            messageContent = trimmedMessage || attachment.name
+            messageContent = messageToSend || attachment.name
           }
         }
         
-        // Send via API first to ensure persistence and get message ID
-        if (messageContent || mediaUrl) {
-          const response = await fetch(`/api/conversations/${selectedLearner.conversationId}/messages`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              content: messageContent,
-              messageType: messageType,
-              mediaUrl: mediaUrl,
-              replyToMessageId: replyingTo?.id || null
-            })
+        // Try socket first for faster delivery, fallback to API
+        if (isConnected && socket) {
+          socketSendMessage({
+            conversationId: selectedLearner.conversationId,
+            content: messageContent,
+            messageType: messageType,
+            mediaUrl: mediaUrl,
+            audioDuration: attachmentsToSend.find(a => a.type === 'audio')?.duration || null
           })
+        }
         
-          const data = await response.json()
+        // Send via API to ensure persistence
+        const response = await fetch(`/api/conversations/${selectedLearner.conversationId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            content: messageContent,
+            messageType: messageType,
+            mediaUrl: mediaUrl,
+            replyToMessageId: replyToSend?.id || null
+          })
+        })
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Failed to send message' }))
+          throw new Error(errorData.error || 'Failed to send message')
+        }
+        
+        const data = await response.json()
+        
+        if (data.success) {
+          const newMessage = {
+            id: data.message.id,
+            senderId: data.message.senderId,
+            senderName: `${data.message.sender.firstName || ''} ${data.message.sender.lastName || ''}`.trim() || data.message.sender.username,
+            content: sanitizeMessageContent(data.message.content || ''),
+            timestamp: new Date(data.message.createdAt),
+            isExpert: true, // Current user's (learner) messages on the right 
+            seen: false,
+            type: data.message.messageType,
+            mediaUrl: data.message.mediaUrl,
+            audioDuration: data.message.audioDuration,
+            replyTo: data.message.replyToMessage ? {
+              id: data.message.replyToMessage.id,
+              content: sanitizeMessageContent(data.message.replyToMessage.content || ''),
+              senderName: `${data.message.replyToMessage.sender.firstName || ''} ${data.message.replyToMessage.sender.lastName || ''}`.trim() || data.message.replyToMessage.sender.username
+            } : null
+          }
           
-          if (data.success) {
-            // Clear input immediately after successful API call
-            setMessage('')
-            setAttachments([])
-            setShowEmojiPicker(false)
-            setReplyingTo(null)
-            
-            // Always add message to local state immediately after API call
-            const newMessage = {
-              id: data.message.id,
-              senderId: data.message.senderId,
-              senderName: `${data.message.sender.firstName || ''} ${data.message.sender.lastName || ''}`.trim() || data.message.sender.username,
-              content: data.message.content,
-              timestamp: new Date(data.message.createdAt),
-              isExpert: true, // Current user's (learner) messages on the right 
-              seen: false,
-              type: data.message.messageType,
-              mediaUrl: data.message.mediaUrl,
-              audioDuration: data.message.audioDuration,
-              replyTo: data.message.replyToMessage ? {
-                id: data.message.replyToMessage.id,
-                content: data.message.replyToMessage.content,
-                senderName: `${data.message.replyToMessage.sender.firstName || ''} ${data.message.replyToMessage.sender.lastName || ''}`.trim() || data.message.replyToMessage.sender.username
-              } : null
+          apiSentMessagesRef.current.add(String(newMessage.id))
+          
+          setMessages(prev => {
+            const filtered = prev.filter(msg => msg.id !== tempMessageId)
+            const messageExists = filtered.some(msg => String(msg.id) === String(newMessage.id))
+            if (!messageExists) {
+              const updated = [...filtered, newMessage].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+              setGroupedMessages(groupMessagesByDate(updated))
+              return updated
             }
+            return filtered
+          })
             
-            // Mark this message as sent via API to prevent socket from adding it again
-            apiSentMessagesRef.current.add(String(newMessage.id))
-            
-            // Add message to local state immediately
-            setMessages(prev => {
-              const messageExists = prev.some(msg => String(msg.id) === String(newMessage.id))
-              if (!messageExists) {
-                const updated = [...prev, newMessage].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-                setGroupedMessages(groupMessagesByDate(updated))
-                return updated
-              }
-              return prev
-            })
-            
-            // Clean up after 5 seconds to prevent memory leak
             setTimeout(() => {
               apiSentMessagesRef.current.delete(String(newMessage.id))
             }, 5000)
@@ -912,24 +963,37 @@ export default function ChatWithLearner() {
                     ...learner, 
                     lastMessagePreview: messageContent || (messageType === 'image' ? 'Image' : messageType === 'document' ? 'Document' : 'Message'),
                     lastMessage: new Date().toLocaleString(),
-                    unreadCount: 0 // Since we're viewing this conversation
+                    unreadCount: 0 
                   }
                 : learner
             ))
             
-            // Scroll to bottom when new message is added
             setTimeout(() => {
               messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
             }, 100)
-          } else {  
+          } else {
+            // API returned success: false
+            throw new Error(data.error || 'Failed to send message')
           }
-        }
       } catch (error) {
-        console.error('Error sending message:', error)
+        // Remove optimistic message on error
+        setMessages(prev => prev.filter(msg => msg.id !== tempMessageId))
+        // Restore input on error
+        setMessage(messageToSend)
+        setAttachments(attachmentsToSend)
+        setReplyingTo(replyToSend)
+        
+        // Show user-friendly error message
+        const errorMessage = error.message || 'Failed to send message. Please try again.'
+        showInAppNotification({
+          title: 'Error',
+          description: errorMessage,
+          avatar: null
+        })
         setErrorDialog({
           open: true,
           title: 'Error',
-          message: 'Failed to send message. Please try again later.',
+          message: errorMessage,
           details: error.message || ''
         })
       } finally {
@@ -1819,10 +1883,10 @@ export default function ChatWithLearner() {
             {getFilteredLearners().length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full p-8 text-center">
                 <MessageSquare className="h-12 w-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-700 mb-2">No Chat Available</h3>
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">No Learners Found</h3>
                 <p className="text-sm text-gray-500 max-w-sm">
-                  You can only chat with learners after booking at least one meeting with them. 
-                  Book a session first to start chatting!
+                  You can only chat with learners who have booked at least one meeting with you. 
+                  No learners have booked sessions yet.
                 </p>
               </div>
             ) : (
@@ -2849,3 +2913,4 @@ export default function ChatWithLearner() {
     </div>
   )
 }
+

@@ -30,7 +30,8 @@ export default async function DashboardPage({ params }) {
               firstName: true,
               lastName: true,
               username: true,
-              avatar: true
+              avatar: true,
+              email: true
             }
           }
         },

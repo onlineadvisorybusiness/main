@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { useSocket } from '@/hooks/useSocket'
+import { sanitizeMessageContent } from '@/lib/phone-filter'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -77,11 +78,15 @@ export default function ChatWithExpert() {
   const audioRef = useRef(null)
   const recordingIntervalRef = useRef(null)
   const notifiedMessagesRef = useRef(new Set())
-  const apiSentMessagesRef = useRef(new Set()) // Track messages sent via API to prevent socket duplicates
-  const socketHandlersRef = useRef({}) // Store socket handlers to prevent duplicate registrations
-  const isSendingRef = useRef(false) // Prevent multiple simultaneous sends
+  const apiSentMessagesRef = useRef(new Set())
+  const socketHandlersRef = useRef({})
+  const isSendingRef = useRef(false)
+  const lastSendTimeRef = useRef(0)
+  const [sendingMessages, setSendingMessages] = useState(new Set())
+  const [failedMessages, setFailedMessages] = useState(new Map())
+  const [messageStatuses, setMessageStatuses] = useState(new Map())
+  const [isOnline, setIsOnline] = useState(true)
 
-  // Mark all messages as read when conversation is opened
   const markAllMessagesAsRead = useCallback(async () => {
     if (selectedExpert?.conversationId && currentUser) {
       try {
@@ -96,12 +101,21 @@ export default function ChatWithExpert() {
         })
         
         if (response.ok) {
-          // Update local message state to show as read
-          setMessages(prev => prev.map(msg => ({
-            ...msg,
-            seen: true,
-            seenTime: new Date()
-          })))
+          setMessages(prev => prev.map(msg => {
+            if (msg.isExpert) {
+              setMessageStatuses(prevStatuses => {
+                const updated = new Map(prevStatuses)
+                updated.set(String(msg.id), 'delivered')
+                return updated
+              })
+            }
+            return {
+              ...msg,
+              seen: true,
+              seenTime: new Date(),
+              status: msg.isExpert ? 'delivered' : msg.status
+            }
+          }))
         } else {
         }
       } catch (error) {
@@ -109,7 +123,122 @@ export default function ChatWithExpert() {
     }
   }, [selectedExpert?.conversationId, currentUser])
 
-  // Fetch current user's profile to get database ID
+  const retryFailedMessages = useCallback(async () => {
+    if (failedMessages.size === 0 || !selectedExpert?.conversationId || !currentUser) return
+    
+    for (const [messageId, failedData] of failedMessages.entries()) {
+      if (failedData.retryCount >= 3) {
+        setFailedMessages(prev => {
+          const updated = new Map(prev)
+          updated.delete(messageId)
+          return updated
+        })
+        setMessages(prev => prev.filter(msg => msg.id !== messageId))
+        continue
+      }
+      
+      try {
+        setFailedMessages(prev => {
+          const updated = new Map(prev)
+          updated.set(messageId, { ...failedData, retryCount: failedData.retryCount + 1 })
+          return updated
+        })
+        
+        setMessageStatuses(prev => {
+          const updated = new Map(prev)
+          updated.set(messageId, 'retrying')
+          return updated
+        })
+        
+        const response = await fetch(`/api/conversations/${selectedExpert.conversationId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            content: failedData.message,
+            messageType: failedData.messageType || 'text',
+            mediaUrl: failedData.mediaUrl,
+            replyToMessageId: failedData.replyTo?.id || null,
+            audioDuration: failedData.audioDuration || null
+          })
+        })
+        
+        if (!response.ok) {
+          throw new Error('Failed to send message')
+        }
+        
+        const data = await response.json()
+        
+        if (data.success) {
+          setFailedMessages(prev => {
+            const updated = new Map(prev)
+            updated.delete(messageId)
+            return updated
+          })
+          
+          setMessageStatuses(prev => {
+            const updated = new Map(prev)
+            updated.delete(messageId)
+            updated.set(String(data.message.id), 'sent')
+            return updated
+          })
+          
+          setMessages(prev => {
+            const filtered = prev.filter(msg => msg.id !== messageId)
+            const newMessage = {
+              id: data.message.id,
+              senderId: data.message.senderId,
+              senderName: `${data.message.sender?.firstName || ''} ${data.message.sender?.lastName || ''}`.trim() || data.message.sender?.username || 'You',
+              content: sanitizeMessageContent(data.message.content || ''),
+              timestamp: new Date(data.message.createdAt),
+              isExpert: true,
+              seen: false,
+              type: data.message.messageType,
+              mediaUrl: data.message.mediaUrl,
+              audioDuration: data.message.audioDuration,
+              status: 'sent',
+              replyTo: data.message.replyToMessage ? {
+                id: data.message.replyToMessage.id,
+                content: sanitizeMessageContent(data.message.replyToMessage.content || ''),
+                senderName: `${data.message.replyToMessage.sender?.firstName || ''} ${data.message.replyToMessage.sender?.lastName || ''}`.trim() || data.message.replyToMessage.sender?.username || 'Unknown'
+              } : null
+            }
+            const updated = [...filtered, newMessage].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+            setGroupedMessages(groupMessagesByDate(updated))
+            return updated
+          })
+        }
+      } catch (error) {
+        console.error('Retry failed:', error)
+      }
+    }
+  }, [failedMessages, selectedExpert?.conversationId, currentUser])
+  
+  // Network status detection
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true)
+      if (failedMessages.size > 0) {
+        retryFailedMessages()
+      }
+    }
+    
+    const handleOffline = () => {
+      setIsOnline(false)
+    }
+    
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    
+    setIsOnline(navigator.onLine)
+    
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [failedMessages, retryFailedMessages])
+  
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
@@ -129,12 +258,10 @@ export default function ChatWithExpert() {
     }
   }, [user])
 
-  // Set client-side flag to prevent hydration mismatch
   useEffect(() => {
     setIsClient(true)
   }, [])
 
-  // Request notification permission on mount
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'default') {
@@ -144,14 +271,11 @@ export default function ChatWithExpert() {
     }
   }, [])
 
-  // Hybrid notification helper - shows in-app toast when tab is focused, browser notification when not
   const showHybridNotification = (title, body, icon = null, messageId = null) => {
-    // Check if we've already notified for this message to prevent duplicates
     if (messageId && notifiedMessagesRef.current.has(messageId)) {  
       return
     }
 
-    // Mark this message as notified
     if (messageId) {
       notifiedMessagesRef.current.add(messageId)
     }
@@ -159,7 +283,6 @@ export default function ChatWithExpert() {
     const isTabFocused = typeof document !== 'undefined' && document.hasFocus()
     
     if (isTabFocused) {
-      // Tab is focused - show in-app toast notification
       showInAppNotification({
         title,
         description: body,
@@ -167,12 +290,10 @@ export default function ChatWithExpert() {
         messageId
       })
     } else {
-      // Tab is not focused - show browser/OS notification
       showBrowserNotification(title, body, icon)
     }
   }
 
-  // Helper function to show browser notification
   const showBrowserNotification = (title, body, icon = null) => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
       return
@@ -180,7 +301,6 @@ export default function ChatWithExpert() {
 
     if (Notification.permission === 'granted') {
       try {
-        // Use unique tag for each notification so multiple can show
         const notificationId = `notification-${Date.now()}-${Math.random()}`
         
         const iconUrl = icon || '/logo.png'
@@ -188,11 +308,11 @@ export default function ChatWithExpert() {
           body: body,
           icon: iconUrl,
           badge: '/logo.png',
-          tag: notificationId, // Unique tag for each notification
-          requireInteraction: false, // Set to true if you want user to click to dismiss
-          silent: false, // Play sound
+          tag: notificationId,
+          requireInteraction: false,
+          silent: false,
           dir: 'ltr',
-          image: iconUrl, // Large image (supported in some browsers)
+          image: iconUrl,
           timestamp: Date.now(),
           data: { 
             url: window.location.href,
@@ -202,11 +322,9 @@ export default function ChatWithExpert() {
 
         const notification = new Notification(title, notificationOptions)
         
-        // Store reference to prevent garbage collection
         if (!window.activeNotifications || !(window.activeNotifications instanceof Map)) {
           window.activeNotifications = new Map()
         }
-        // Store the notification object itself, not just the ID
         window.activeNotifications.set(notificationId, notification)
 
         setTimeout(() => {
@@ -244,8 +362,7 @@ export default function ChatWithExpert() {
       }
     } else if (Notification.permission === 'default') {
         Notification.requestPermission().then(permission => {
-        if (permission === 'granted') {
-          // Retry showing the notification
+        if (permission === 'granted') { 
           showBrowserNotification(title, body, icon)
         }
       })  
@@ -297,48 +414,22 @@ export default function ChatWithExpert() {
         
         
         if (conversationsData.success) {
-          const expertsFromConversations = conversationsData.conversations.map(conv => ({
-            id: conv.otherParticipant.id,
-            name: `${conv.otherParticipant.firstName || ''} ${conv.otherParticipant.lastName || ''}`.trim() || conv.otherParticipant.username,
-            username: conv.otherParticipant.username,
-            avatar: conv.otherParticipant.avatar || '/default-avatar.png',
-            industry: conv.otherParticipant.accountStatus === 'expert' ? 'Expert' : 'Learner',
-            lastMessage: conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleString() : 'No messages',
-            online: false, 
-            unreadCount: conv.unreadCount,
-            lastMessagePreview: conv.lastMessage || 'No messages yet',
-            conversationId: conv.id
-          }))
+          const expertsFromConversations = conversationsData.conversations
+            .filter(conv => conv.otherParticipant.accountStatus === 'expert')
+            .map(conv => ({
+              id: conv.otherParticipant.id,
+              name: `${conv.otherParticipant.firstName || ''} ${conv.otherParticipant.lastName || ''}`.trim() || conv.otherParticipant.username,
+              username: conv.otherParticipant.username,
+              avatar: conv.otherParticipant.avatar || '/default-avatar.png',
+              industry: 'Expert',
+              lastMessage: conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleString() : 'No messages',
+              online: false, 
+              unreadCount: conv.unreadCount,
+              lastMessagePreview: conv.lastMessage || 'No messages yet',
+              conversationId: conv.id
+            }))
           
-          if (expertsFromConversations.length === 0) {
-            try {
-              const expertsResponse = await fetch('/api/experts')
-              const expertsData = await expertsResponse.json()
-              
-              if (expertsData.success) {
-                const availableExperts = expertsData.experts.map(expert => ({
-                  id: expert.id,
-                  name: expert.name,
-                  username: expert.username,
-                  avatar: expert.avatar || '/default-avatar.png',
-                  industry: 'Expert',
-                  lastMessage: 'No messages',
-          online: false,
-          unreadCount: 0,
-                  lastMessagePreview: 'Start a conversation',
-                  conversationId: null 
-                }))
-                
-                setExperts(availableExperts)
-              } else {
-                setExperts([])
-              }
-            } catch (error) {
-              setExperts([])
-            }
-          } else {
-            setExperts(expertsFromConversations)
-          }
+          setExperts(expertsFromConversations)
         } else {
           setExperts([])
         }
@@ -366,9 +457,9 @@ export default function ChatWithExpert() {
               id: msg.id,
               senderId: msg.senderId,
               senderName: `${msg.sender.firstName || ''} ${msg.sender.lastName || ''}`.trim() || msg.sender.username,
-              content: msg.content,
+              content: sanitizeMessageContent(msg.content || ''),
               timestamp: new Date(msg.createdAt),
-              isExpert: String(msg.senderId) === String(currentUser?.id), // If sender is current user (learner), message goes on right
+              isExpert: String(msg.senderId) === String(currentUser?.id),
               seen: msg.isRead,
               seenTime: msg.readAt ? new Date(msg.readAt) : null,
               type: msg.messageType,
@@ -376,14 +467,13 @@ export default function ChatWithExpert() {
               audioDuration: msg.audioDuration,
               replyTo: msg.replyToMessage ? {
                 id: msg.replyToMessage.id,
-                content: msg.replyToMessage.content,
+                content: sanitizeMessageContent(msg.replyToMessage.content || ''),
                 senderName: `${msg.replyToMessage.sender.firstName || ''} ${msg.replyToMessage.sender.lastName || ''}`.trim() || msg.replyToMessage.sender.username
               } : null
             }))
             
             setMessages(formattedMessages)
 
-            // Process reactions data
             if (data.messages.length > 0) {
               const reactionsData = {}
               data.messages.forEach(msg => {
@@ -401,12 +491,10 @@ export default function ChatWithExpert() {
               setMessageReactions(reactionsData)
             }
             
-            // Mark all messages as read when conversation is opened (with a small delay to ensure messages are rendered)
             setTimeout(() => {
               markAllMessagesAsRead()
             }, 100)
 
-            // Group messages by date
             const grouped = groupMessagesByDate(formattedMessages)
             setGroupedMessages(grouped)
           } else {
@@ -497,7 +585,7 @@ export default function ChatWithExpert() {
             conversationName = expert.name || senderName
             return {
               ...expert,
-              lastMessagePreview: data.message?.content || (data.message?.messageType === 'image' ? 'Image' : data.message?.messageType === 'document' ? 'Document' : 'Message'),
+              lastMessagePreview: sanitizeMessageContent(data.message?.content || '') || (data.message?.messageType === 'image' ? 'Image' : data.message?.messageType === 'document' ? 'Document' : 'Message'),
               lastMessage: new Date().toLocaleString(),
               unreadCount: isCurrentConversation ? 0 : (String(data.message?.senderId) === String(currentUser?.id) ? expert.unreadCount : expert.unreadCount + 1)
             }
@@ -508,7 +596,7 @@ export default function ChatWithExpert() {
       })
       
       if (isFromOtherUser && data.message && !isCurrentConversation) {
-        const messagePreview = data.message.content || 
+        const messagePreview = sanitizeMessageContent(data.message.content || '') || 
           (data.message.messageType === 'image' ? '📷 Image' : 
            data.message.messageType === 'document' ? '📄 Document' : 
            data.message.messageType === 'audio' ? '🎤 Audio' : 
@@ -529,7 +617,7 @@ export default function ChatWithExpert() {
           id: data.message.id,
           senderId: data.message.senderId,
           senderName: `${data.message.sender?.firstName || ''} ${data.message.sender?.lastName || ''}`.trim() || data.message.sender?.username || 'Unknown',
-          content: data.message.content,
+          content: sanitizeMessageContent(data.message.content || ''),
           timestamp: new Date(data.message.createdAt),
           isExpert: String(data.message.senderId) === String(currentUser?.id), 
           seen: data.message.isRead || false,
@@ -539,7 +627,7 @@ export default function ChatWithExpert() {
           audioDuration: data.message.audioDuration,
           replyTo: data.message.replyToMessage ? {
             id: data.message.replyToMessage.id,
-            content: data.message.replyToMessage.content,
+            content: sanitizeMessageContent(data.message.replyToMessage.content || ''),
             senderName: `${data.message.replyToMessage.sender?.firstName || ''} ${data.message.replyToMessage.sender?.lastName || ''}`.trim() || data.message.replyToMessage.sender?.username || 'Unknown'
           } : null
         }
@@ -549,7 +637,14 @@ export default function ChatWithExpert() {
           if (messageExists) {
             return prev.map(msg => {
               if (String(msg.id) === String(newMessage.id) || (msg.id?.startsWith('temp-') && String(msg.senderId) === String(newMessage.senderId) && msg.content === newMessage.content)) {
-                return newMessage
+                if (newMessage.seen && newMessage.isExpert) {
+                  setMessageStatuses(prev => {
+                    const updated = new Map(prev)
+                    updated.set(String(newMessage.id), 'delivered')
+                    return updated
+                  })
+                }
+                return { ...newMessage, status: newMessage.seen && newMessage.isExpert ? 'delivered' : (newMessage.status || 'sent') }
               }
               return msg
             })
@@ -590,7 +685,7 @@ export default function ChatWithExpert() {
         
         if (isCurrentConversation) {
           if (isFromOtherUser && data.message) {
-            const messagePreview = data.message.content || 
+            const messagePreview = sanitizeMessageContent(data.message.content || '') || 
               (data.message.messageType === 'image' ? '📷 Image' : 
                data.message.messageType === 'document' ? '📄 Document' : 
                data.message.messageType === 'audio' ? '🎤 Audio' : 
@@ -608,7 +703,7 @@ export default function ChatWithExpert() {
           
           return { 
             ...expert, 
-            lastMessagePreview: data.message.content,
+            lastMessagePreview: sanitizeMessageContent(data.message.content || ''),
             lastMessage: new Date().toLocaleString(),
             unreadCount: String(selectedExpert?.conversationId) === String(data.conversationId) ? 0 : expert.unreadCount + 1
           }
@@ -627,7 +722,7 @@ export default function ChatWithExpert() {
           id: data.message.id,
           senderId: data.message.senderId,
           senderName: `${data.message.sender?.firstName || ''} ${data.message.sender?.lastName || ''}`.trim() || data.message.sender?.username || 'Unknown',
-          content: data.message.content,
+          content: sanitizeMessageContent(data.message.content || ''),
           timestamp: new Date(data.message.createdAt),
           isExpert: String(data.message.senderId) === String(currentUser?.id), 
           seen: data.message.isRead || false,
@@ -637,7 +732,7 @@ export default function ChatWithExpert() {
           audioDuration: data.message.audioDuration,
           replyTo: data.message.replyToMessage ? {
             id: data.message.replyToMessage.id,
-            content: data.message.replyToMessage.content,
+            content: sanitizeMessageContent(data.message.replyToMessage.content || ''),
             senderName: `${data.message.replyToMessage.sender?.firstName || ''} ${data.message.replyToMessage.sender?.lastName || ''}`.trim() || data.message.replyToMessage.sender?.username || 'Unknown'
           } : null
         }
@@ -648,14 +743,12 @@ export default function ChatWithExpert() {
             const updated = [...prev, newMessage].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
             setGroupedMessages(groupMessagesByDate(updated))
             
-            // Mark messages as read if received from other user
             if (String(newMessage.senderId) !== String(currentUser?.id)) {
               setTimeout(() => {
                 markAllMessagesAsRead()
               }, 500)
             }
             
-            // Scroll to bottom when new message arrives
             setTimeout(() => {
               messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
             }, 100)
@@ -842,8 +935,9 @@ export default function ChatWithExpert() {
   }, [messages, messageDurations])
 
   const handleSendMessage = async () => {
-    // Prevent multiple simultaneous sends
-    if (isSendingRef.current) {
+    // Prevent multiple simultaneous sends and rapid double-clicks (within 500ms)
+    const now = Date.now()
+    if (isSendingRef.current || (now - lastSendTimeRef.current < 500)) {
       return
     }
     
@@ -851,12 +945,57 @@ export default function ChatWithExpert() {
     
     if ((trimmedMessage || attachments.length > 0) && selectedExpert && selectedExpert.conversationId) {
       isSendingRef.current = true
+      lastSendTimeRef.current = now
+      
+      // Store original values before clearing
+      const messageToSend = trimmedMessage
+      const attachmentsToSend = [...attachments]
+      const replyToSend = replyingTo
+      
+      // Clear input immediately for instant feedback
+      setMessage('')
+      setAttachments([])
+      setShowEmojiPicker(false)
+      setReplyingTo(null)
+      
+      const tempMessageId = `temp-${Date.now()}-${Math.random()}`
+      const optimisticMessage = {
+        id: tempMessageId,
+        senderId: currentUser?.id,
+        senderName: `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim() || currentUser?.username || 'You',
+        content: sanitizeMessageContent(messageToSend || ''),
+        timestamp: new Date(),
+        isExpert: true,
+        seen: false,
+        type: 'text',
+        mediaUrl: null,
+        audioDuration: null,
+        replyTo: replyToSend ? {
+          id: replyToSend.id,
+          content: replyToSend.content,
+          senderName: replyToSend.senderName
+        } : null,
+        isOptimistic: true,
+        status: 'sending' // Track message status
+      }
+      
+      setSendingMessages(prev => new Set([...prev, tempMessageId]))
+      setMessageStatuses(prev => new Map(prev.set(tempMessageId, 'sending')))
+      
+      setMessages(prev => {
+        const updated = [...prev, optimisticMessage].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+        setGroupedMessages(groupMessagesByDate(updated))
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+        }, 50)
+        return updated
+      })
+      
       try {
         let mediaUrl = null
         
-        // Upload files if there are any attachments
-        if (attachments.length > 0) {
-          for (const attachment of attachments) {
+        if (attachmentsToSend.length > 0) {
+          for (const attachment of attachmentsToSend) {
             if ((attachment.type === 'image' || attachment.type === 'document') && attachment.file) {
               const formData = new FormData()
               formData.append('file', attachment.file)
@@ -870,84 +1009,108 @@ export default function ChatWithExpert() {
               
               if (uploadData.success) {
                 mediaUrl = uploadData.url
-                break // For now, only send the first file
+                break
               } else {  
               }
             }
           }
         }
 
-        // Determine message type and content based on attachment
         let messageType = 'text'
-        let messageContent = trimmedMessage
+        let messageContent = messageToSend
         
-        if (mediaUrl && attachments.length > 0) {
-          const attachment = attachments[0]
+        if (mediaUrl && attachmentsToSend.length > 0) {
+          const attachment = attachmentsToSend[0]
           if (attachment.type === 'image') {
             messageType = 'image'
-            messageContent = trimmedMessage || 'Image'
+            messageContent = messageToSend || 'Image'
           } else if (attachment.type === 'document') {
             messageType = 'document'
-            messageContent = trimmedMessage || attachment.name
+            messageContent = messageToSend || attachment.name
           }
         }
         
-        // Send via API first to ensure persistence and get message ID
-        if (messageContent || mediaUrl) {
-          const response = await fetch(`/api/conversations/${selectedExpert.conversationId}/messages`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              content: messageContent,
-              messageType: messageType,
-              mediaUrl: mediaUrl,
-              replyToMessageId: replyingTo?.id || null,
-              audioDuration: attachments.find(a => a.type === 'audio')?.duration || null
-            })
+        if (isConnected && socket) {
+          socketSendMessage({
+            conversationId: selectedExpert.conversationId,
+            content: messageContent,
+            messageType: messageType,
+            mediaUrl: mediaUrl,
+            audioDuration: attachmentsToSend.find(a => a.type === 'audio')?.duration || null
           })
+        }
+
+        const response = await fetch(`/api/conversations/${selectedExpert.conversationId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            content: messageContent,
+            messageType: messageType,
+            mediaUrl: mediaUrl,
+            replyToMessageId: replyToSend?.id || null,
+            audioDuration: attachmentsToSend.find(a => a.type === 'audio')?.duration || null
+          })
+        })
         
-          const data = await response.json()
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Failed to send message' }))
+          throw new Error(errorData.error || 'Failed to send message')
+        }
+        
+        const data = await response.json()
+        
+        if (data.success) {
+          const newMessage = {
+            id: data.message.id,
+            senderId: data.message.senderId,
+            senderName: `${data.message.sender?.firstName || ''} ${data.message.sender?.lastName || ''}`.trim() || data.message.sender?.username || 'You',
+            content: sanitizeMessageContent(data.message.content || ''),
+            timestamp: new Date(data.message.createdAt),
+            isExpert: true, 
+            seen: false,
+            type: data.message.messageType,
+            mediaUrl: data.message.mediaUrl,
+            audioDuration: data.message.audioDuration,
+            replyTo: data.message.replyToMessage ? {
+              id: data.message.replyToMessage.id,
+              content: sanitizeMessageContent(data.message.replyToMessage.content || ''),
+              senderName: `${data.message.replyToMessage.sender?.firstName || ''} ${data.message.replyToMessage.sender?.lastName || ''}`.trim() || data.message.replyToMessage.sender?.username || 'Unknown'
+            } : null
+          }
           
-          if (data.success) {
-            setMessage('')
-            setAttachments([])
-            setShowEmojiPicker(false)
-            setReplyingTo(null)
-            
-            const newMessage = {
-              id: data.message.id,
-              senderId: data.message.senderId,
-              senderName: `${data.message.sender?.firstName || ''} ${data.message.sender?.lastName || ''}`.trim() || data.message.sender?.username || 'You',
-              content: data.message.content,
-              timestamp: new Date(data.message.createdAt),
-              isExpert: true, 
-              seen: false,
-              type: data.message.messageType,
-              mediaUrl: data.message.mediaUrl,
-              audioDuration: data.message.audioDuration,
-              replyTo: data.message.replyToMessage ? {
-                id: data.message.replyToMessage.id,
-                content: data.message.replyToMessage.content,
-                senderName: `${data.message.replyToMessage.sender?.firstName || ''} ${data.message.replyToMessage.sender?.lastName || ''}`.trim() || data.message.replyToMessage.sender?.username || 'Unknown'
-              } : null
+          apiSentMessagesRef.current.add(String(newMessage.id))
+          
+          setMessageStatuses(prev => {
+            const updated = new Map(prev)
+            updated.delete(tempMessageId)
+            updated.set(String(newMessage.id), 'sent')
+            return updated
+          })
+          
+          setSendingMessages(prev => {
+            const updated = new Set(prev)
+            updated.delete(tempMessageId)
+            return updated
+          })
+          setFailedMessages(prev => {
+            const updated = new Map(prev)
+            updated.delete(tempMessageId)
+            return updated
+          })
+          
+          setMessages(prev => {
+            const filtered = prev.filter(msg => msg.id !== tempMessageId)
+            const messageExists = filtered.some(msg => String(msg.id) === String(newMessage.id))
+            if (!messageExists) {
+              const updated = [...filtered, { ...newMessage, status: 'sent' }].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+              setGroupedMessages(groupMessagesByDate(updated))
+              return updated
             }
+            return filtered
+          })
             
-            // Mark this message as sent via API to prevent socket from adding it again
-            apiSentMessagesRef.current.add(String(newMessage.id))
-            
-            setMessages(prev => {
-              const messageExists = prev.some(msg => String(msg.id) === String(newMessage.id))
-              if (!messageExists) {
-                const updated = [...prev, newMessage].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-                setGroupedMessages(groupMessagesByDate(updated))
-                return updated
-              }
-              return prev
-            })
-            
-            // Clean up after 5 seconds to prevent memory leak
             setTimeout(() => {
               apiSentMessagesRef.current.delete(String(newMessage.id))
             }, 5000)
@@ -966,10 +1129,54 @@ export default function ChatWithExpert() {
             setTimeout(() => {
               messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
             }, 100)
-
+          } else {
+            // API returned success: false
+            throw new Error(data.error || 'Failed to send message')
           }
-        }
       } catch (error) {
+        const isNetworkError = !navigator.onLine || error.message.includes('fetch') || error.message.includes('network')
+        
+        if (isNetworkError) {
+          setIsOnline(false)
+        }
+        
+        setFailedMessages(prev => new Map(prev.set(tempMessageId, {
+          message: messageToSend,
+          attachments: attachmentsToSend,
+          replyTo: replyToSend,
+          messageType: messageType,
+          mediaUrl: mediaUrl,
+          retryCount: 0,
+          error: error.message
+        })))
+        
+        setMessageStatuses(prev => {
+          const updated = new Map(prev)
+          updated.set(tempMessageId, 'failed')
+          return updated
+        })
+        
+        setMessages(prev => prev.map(msg => 
+          msg.id === tempMessageId 
+            ? { ...msg, status: 'failed', error: error.message }
+            : msg
+        ))
+        
+        setSendingMessages(prev => {
+          const updated = new Set(prev)
+          updated.delete(tempMessageId)
+          return updated
+        })
+        
+        const errorMessage = isNetworkError 
+          ? 'No internet connection. Message will be sent when connection is restored.'
+          : (error.message || 'Failed to send message. Tap to retry.')
+        
+        showInAppNotification({
+          title: isNetworkError ? 'Offline' : 'Error',
+          description: errorMessage,
+          avatar: null
+        })
         console.error('Error sending message:', error)
       } finally {
         isSendingRef.current = false
@@ -1846,7 +2053,7 @@ export default function ChatWithExpert() {
             {getFilteredExperts().length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full p-8 text-center">
                 <MessageSquare className="h-12 w-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-700 mb-2">No Chat Available</h3>
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">No Experts Found</h3>
                 <p className="text-sm text-gray-500 max-w-sm">
                   You can only chat with experts after booking at least one meeting with them. 
                   Book a session first to start chatting!
@@ -1990,7 +2197,10 @@ export default function ChatWithExpert() {
                      <p className="text-xs text-gray-500">
                        {typingUsers.size > 0 ? (
                          <span className="flex items-center gap-1">
-                           <span>typing</span>
+                           <span>{Array.from(typingUsers).map(id => {
+                             const typingUser = experts.find(e => e.id === id)
+                             return typingUser?.name || 'Expert'
+                           }).join(', ')} {typingUsers.size === 1 ? 'is' : 'are'} typing</span>
                            <span className="flex gap-1">
                              <span className="animate-bounce">.</span>
                              <span className="animate-bounce" style={{animationDelay: '0.1s'}}>.</span>
@@ -2003,6 +2213,12 @@ export default function ChatWithExpert() {
                      </p>
                        {typingUsers.size === 0 && (
                          <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} title={isConnected ? 'Real-time connected' : 'Real-time disconnected'} />
+                       )}
+                       {!isOnline && (
+                         <span className="text-xs text-orange-600 flex items-center gap-1" title="No internet connection">
+                           <div className="h-2 w-2 rounded-full bg-orange-500"></div>
+                           Offline
+                         </span>
                        )}
                      </div>
                   </div>
@@ -2372,6 +2588,120 @@ export default function ChatWithExpert() {
                              {starredMessages.has(msg.id) && (
                                <Star className={`h-3 w-3 fill-yellow-400 text-yellow-400`} />
                              )}
+                             {/* Message Status Indicator */}
+                             {msg.isExpert && (
+                               <div className="flex items-center gap-1">
+                                 {(() => {
+                                   const status = messageStatuses.get(String(msg.id)) || msg.status || (msg.seen ? 'delivered' : 'sent')
+                                   if (status === 'sending' || status === 'retrying') {
+                                     return (
+                                       <div className="flex items-center gap-1">
+                                         <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></div>
+                                         <span className="text-xs text-white/70">{status === 'retrying' ? 'Retrying...' : 'Sending...'}</span>
+                                       </div>
+                                     )
+                                   } else if (status === 'failed') {
+                                     return (
+                                       <button
+                                         onClick={async () => {
+                                           const failedData = failedMessages.get(String(msg.id))
+                                           if (failedData && selectedExpert?.conversationId && currentUser) {
+                                             try {
+                                               setMessageStatuses(prev => {
+                                                 const updated = new Map(prev)
+                                                 updated.set(String(msg.id), 'retrying')
+                                                 return updated
+                                               })
+                                               
+                                               const response = await fetch(`/api/conversations/${selectedExpert.conversationId}/messages`, {
+                                                 method: 'POST',
+                                                 headers: {
+                                                   'Content-Type': 'application/json',
+                                                 },
+                                                 body: JSON.stringify({
+                                                   content: failedData.message,
+                                                   messageType: failedData.messageType || 'text',
+                                                   mediaUrl: failedData.mediaUrl,
+                                                   replyToMessageId: failedData.replyTo?.id || null,
+                                                   audioDuration: failedData.audioDuration || null
+                                                 })
+                                               })
+                                               
+                                               if (!response.ok) {
+                                                 throw new Error('Failed to send message')
+                                               }
+                                               
+                                               const data = await response.json()
+                                               
+                                               if (data.success) {
+                                                 setFailedMessages(prev => {
+                                                   const updated = new Map(prev)
+                                                   updated.delete(String(msg.id))
+                                                   return updated
+                                                 })
+                                                 
+                                                 setMessageStatuses(prev => {
+                                                   const updated = new Map(prev)
+                                                   updated.delete(String(msg.id))
+                                                   updated.set(String(data.message.id), 'sent')
+                                                   return updated
+                                                 })
+                                                 
+                                                 setMessages(prev => {
+                                                   const filtered = prev.filter(m => m.id !== msg.id)
+                                                   const newMessage = {
+                                                     id: data.message.id,
+                                                     senderId: data.message.senderId,
+                                                     senderName: `${data.message.sender?.firstName || ''} ${data.message.sender?.lastName || ''}`.trim() || data.message.sender?.username || 'You',
+                                                     content: sanitizeMessageContent(data.message.content || ''),
+                                                     timestamp: new Date(data.message.createdAt),
+                                                     isExpert: true,
+                                                     seen: false,
+                                                     type: data.message.messageType,
+                                                     mediaUrl: data.message.mediaUrl,
+                                                     audioDuration: data.message.audioDuration,
+                                                     status: 'sent',
+                                                     replyTo: data.message.replyToMessage ? {
+                                                       id: data.message.replyToMessage.id,
+                                                       content: sanitizeMessageContent(data.message.replyToMessage.content || ''),
+                                                       senderName: `${data.message.replyToMessage.sender?.firstName || ''} ${data.message.replyToMessage.sender?.lastName || ''}`.trim() || data.message.replyToMessage.sender?.username || 'Unknown'
+                                                     } : null
+                                                   }
+                                                   const updated = [...filtered, newMessage].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+                                                   setGroupedMessages(groupMessagesByDate(updated))
+                                                   return updated
+                                                 })
+                                               }
+                                             } catch (error) {
+                                               setMessageStatuses(prev => {
+                                                 const updated = new Map(prev)
+                                                 updated.set(String(msg.id), 'failed')
+                                                 return updated
+                                               })
+                                               showInAppNotification({
+                                                 title: 'Error',
+                                                 description: 'Failed to retry message. Please try again.',
+                                                 avatar: null
+                                               })
+                                             }
+                                           }
+                                         }}
+                                         className="flex items-center gap-1 text-xs text-red-300 hover:text-red-100"
+                                         title="Tap to retry"
+                                       >
+                                         <X className="h-3 w-3" />
+                                         <span>Failed - Tap to retry</span>
+                                       </button>
+                                     )
+                                   } else if (status === 'sent') {
+                                     return <Check className="h-3 w-3 text-white/70" />
+                                   } else if (status === 'delivered' || msg.seen) {
+                                     return <CheckCheck className="h-3 w-3 text-white/70" />
+                                   }
+                                   return null
+                                 })()}
+                               </div>
+                             )}
                              <span className={`text-xs ${msg.isExpert ? 'text-blue-100' : 'text-gray-500'}`}>
                                {formatTime(msg.timestamp)}
                              </span>
@@ -2730,9 +3060,14 @@ export default function ChatWithExpert() {
                   {message.trim() || attachments.length > 0 || audioBlob ? (
                     <Button 
                       onClick={audioBlob ? sendAudioMessage : handleSendMessage}
-                      className="rounded-full h-8 w-8 p-0 bg-blue-600 hover:bg-blue-700"
+                      disabled={isSendingRef.current || sendingMessages.size > 0}
+                      className="rounded-full h-8 w-8 p-0 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <Send className="h-4 w-4" />
+                      {isSendingRef.current || sendingMessages.size > 0 ? (
+                        <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
                     </Button>
                   ) : (
                     <Button 
@@ -2944,3 +3279,4 @@ export default function ChatWithExpert() {
     </div>
   )
 }
+

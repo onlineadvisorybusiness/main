@@ -29,8 +29,10 @@ import {
   AlertCircle,
   Users,
   Tag,
-  Loader2
+  Loader2,
+  Globe
 } from 'lucide-react'
+import { timezones, formatTimezoneLabel, convertTime } from '@/lib/timezone'
 
 function LearnerMeetings() {
   const { user } = useUser()
@@ -494,7 +496,7 @@ function LearnerMeetingCard({
               <span className="text-sm text-gray-600">Category:</span>
               <span className="text-sm text-gray-900">
                 {meeting.session?.categories && meeting.session.categories.length > 0 
-                  ? meeting.session.categories.map(cat => cat.charAt(0).toUpperCase() + cat.slice(1)).join(', ') 
+                  ? (meeting.session.categories[0].charAt(0).toUpperCase() + meeting.session.categories[0].slice(1))
                   : 'N/A'}
               </span>
             </div>
@@ -507,15 +509,55 @@ function LearnerMeetingCard({
                  meeting.sessionPlatform}
               </span>
             </div>
+            {meeting.learnerTimezone && meeting.expertTimezone && (
+              <div className="flex items-start gap-2">
+                <Globe className="w-4 h-4 text-gray-500 mt-0.5" />
+                <div className="flex-1">
+                  <span className="text-sm text-gray-600">Timezone:</span>
+                  <div className="text-sm text-gray-900 mt-0.5">
+                    <div>Expert: <span className="font-medium">{timezones.find(tz => tz.value === meeting.expertTimezone)?.label || meeting.expertTimezone}</span></div>
+                    <div>Learner: <span className="font-medium">{timezones.find(tz => tz.value === meeting.learnerTimezone)?.label || meeting.learnerTimezone}</span></div>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-gray-500" />
               <span className="text-sm text-gray-600">Date:</span>
-              <span className="text-sm text-gray-900">{formatDate(meeting.date)}</span>
+              <span className="text-sm text-gray-900">
+                {(() => {
+                  const bookingDate = new Date(meeting.date)
+                  if (meeting.learnerTimezone) {
+                    return bookingDate.toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      timeZone: meeting.learnerTimezone
+                    })
+                  }
+                  return formatDate(meeting.date)
+                })()}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-gray-500" />
               <span className="text-sm text-gray-600">Time:</span>
-              <span className="text-sm text-gray-900">{formatTime(meeting.startTime)} - {formatTime(meeting.endTime)}</span>
+              <span className="text-sm text-gray-900">
+                {(() => {
+                  if (meeting.learnerTimezone && meeting.expertTimezone) {
+                    const bookingDate = new Date(meeting.date)
+                    const learnerStartTime = meeting.expertTimezone !== meeting.learnerTimezone
+                      ? convertTime(meeting.startTime, meeting.expertTimezone, meeting.learnerTimezone, bookingDate)
+                      : meeting.startTime
+                    const learnerEndTime = meeting.expertTimezone !== meeting.learnerTimezone
+                      ? convertTime(meeting.endTime, meeting.expertTimezone, meeting.learnerTimezone, bookingDate)
+                      : meeting.endTime
+                    return `${formatTime(learnerStartTime)} - ${formatTime(learnerEndTime)} (${timezones.find(tz => tz.value === meeting.learnerTimezone)?.label || meeting.learnerTimezone})`
+                  }
+                  return `${formatTime(meeting.startTime)} - ${formatTime(meeting.endTime)}`
+                })()}
+              </span>
             </div>
           </div>
         </div>
