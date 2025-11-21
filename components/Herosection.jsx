@@ -1,15 +1,63 @@
 "use client"
 
 import { motion, useScroll, useTransform } from "framer-motion"
-import { useRef, useState } from "react"
+import { useRef, useState, useEffect } from "react"
 import { Mouse } from "lucide-react"
 import { SmoothReveal, SmoothFade } from "@/components/animations"
 
 export function HeroSection() {
   const ref = useRef(null)
+  const videoRef = useRef(null)
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] })
   const yParallax = useTransform(scrollYProgress, [0, 1], [0, 40])
   const [videoError, setVideoError] = useState(false)
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    // Set video properties for iOS compatibility
+    video.muted = true
+    video.playsInline = true
+    video.setAttribute('playsinline', 'true')
+    video.setAttribute('webkit-playsinline', 'true')
+    
+    // Try to play the video
+    const playVideo = async () => {
+      try {
+        await video.play()
+      } catch (error) {
+        const handleInteraction = async () => {
+          try {
+            await video.play()
+            document.removeEventListener('touchstart', handleInteraction)
+            document.removeEventListener('click', handleInteraction)
+          } catch (e) {
+            // Video still can't play
+          }
+        }
+        document.addEventListener('touchstart', handleInteraction, { once: true })
+        document.addEventListener('click', handleInteraction, { once: true })
+      }
+    }
+
+    // Try to play when video can play
+    const handleCanPlay = () => {
+      playVideo()
+    }
+
+    video.addEventListener('canplay', handleCanPlay)
+    video.addEventListener('loadeddata', handleCanPlay)
+    
+    if (video.readyState >= 3) {
+      playVideo()
+    }
+
+    return () => {
+      video.removeEventListener('canplay', handleCanPlay)
+      video.removeEventListener('loadeddata', handleCanPlay)
+    }
+  }, [])
 
 
   return (
@@ -17,15 +65,17 @@ export function HeroSection() {
       <div className="absolute inset-0 z-0">
         {!videoError && (
           <video
+            ref={videoRef}
             autoPlay
             loop
             muted
             playsInline
-            preload="metadata"
+            preload="auto"
             onError={() => setVideoError(true)}
             onLoadedData={() => setVideoError(false)}
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover video-hero"
             aria-label="Background video showing business advisory services"
+            style={{ pointerEvents: 'none' }}
           >
             <source src="/3191887-uhd_3840_2160_25fps.mp4" type="video/mp4" />
             <track kind="captions" srcLang="en" label="English captions" />
@@ -40,7 +90,7 @@ export function HeroSection() {
           <SmoothReveal 
             delay={0}
             duration={0.8}
-            className="max-w-3xl space-y-4 sm:space-y-6 lg:space-y-8"
+            className="max-w-3xl space-y-2 sm:space-y-3 lg:space-y-4"
             variants={{
               hidden: { opacity: 0, x: -32 },
               visible: { 
@@ -74,9 +124,9 @@ export function HeroSection() {
                 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold leading-[1.15] sm:leading-[1.1] tracking-tight text-white"
                 style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif", fontStyle: 'italic' }}
               >
-                One conversation
+                Connect with expert
                 <br />
-                can change everything.
+                advisors & consultants.
               </h1>
             </SmoothReveal>
 
@@ -100,7 +150,7 @@ export function HeroSection() {
                 className="text-sm sm:text-base md:text-lg lg:text-xl text-white/90 leading-relaxed max-w-2xl"
                 style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
               >
-                My First Cheque connects you with experienced operators for real, 1:1 advice. Fast, honest, and human.
+                Get personalized 1:1 mentorship from industry-leading advisors and consultants. Real guidance, real results.
               </p>
             </SmoothReveal>
           </SmoothReveal>
@@ -142,6 +192,33 @@ export function HeroSection() {
         
         .animate-border {
           animation: borderColor 3s ease-in-out infinite;
+        }
+        
+        /* Hide video controls and play button on iOS */
+        .video-hero::-webkit-media-controls {
+          display: none !important;
+        }
+        
+        .video-hero::-webkit-media-controls-enclosure {
+          display: none !important;
+        }
+        
+        .video-hero::-webkit-media-controls-panel {
+          display: none !important;
+        }
+        
+        .video-hero::-webkit-media-controls-play-button {
+          display: none !important;
+        }
+        
+        .video-hero::-webkit-media-controls-start-playback-button {
+          display: none !important;
+        }
+        
+        .video-hero {
+          -webkit-appearance: none;
+          -moz-appearance: none;
+          appearance: none;
         }
         
         @media (prefers-reduced-motion: reduce) {

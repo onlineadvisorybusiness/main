@@ -33,7 +33,6 @@ export async function GET(request) {
     })
 
   } catch (error) {
-    console.error('Error fetching user presence:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })
@@ -85,7 +84,6 @@ export async function PATCH(request) {
     })
 
   } catch (error) {
-    console.error('Error updating user presence:', error)
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })

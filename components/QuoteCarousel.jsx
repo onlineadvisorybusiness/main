@@ -7,27 +7,27 @@ import Image from "next/image"
 const experts = [
   {
     id: 1,
-    quote: "The real edge of billion-dollar founders isn't who they are, but who they surround themselves with. Their true superpower is trusted advisors and peers.",
+    quote: "The best business leaders don't go it alone. They work with trusted advisors and consultants who provide 1:1 mentorship to navigate complex challenges and accelerate growth.",
     author: "Chris Tottman",
-    role: "Partner at Notion Capital",
+    role: "Strategic Advisor at Notion Capital",
     avatar: "/startup-founder.jpg",
     logo: "/Notion-logo.png",
     bgColor: "bg-yellow-100", // Light yellow
   },
   {
     id: 2,
-    quote: "Success in business comes from making the right decisions at the right time. Having experienced mentors guide you through those critical moments is invaluable.",
+    quote: "1:1 mentorship with experienced consultants transforms how you approach problems. It's not just advice—it's personalized guidance that changes outcomes.",
     author: "Sarah Johnson",
-    role: "CEO at TechVentures",
+    role: "Business Consultant & CEO at TechVentures",
     avatar: "/startup-mentor.jpg",
     logo: "/google-icon.png",
     bgColor: "bg-blue-100", // Light blue
   },
   {
     id: 3,
-    quote: "The best investment you can make is in yourself and your network. Surround yourself with people who challenge and elevate your thinking.",
+    quote: "Working with the right advisor through personalized mentorship sessions is the fastest path to breakthrough insights and strategic clarity.",
     author: "Michael Chen",
-    role: "Founder at Innovation Labs",
+    role: "Advisory Consultant at Innovation Labs",
     avatar: "/startup-founder.jpg",
     logo: "/Linkedin.png",
     bgColor: "bg-green-100", // Light green
@@ -82,7 +82,7 @@ export function QuoteCarousel() {
               className="text-xs sm:text-sm md:text-base text-gray-900 mb-3 sm:mb-4"
               style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
             >
-              Advice that changes everything.
+              Real mentorship from real advisors.
             </motion.div>
 
             <motion.div

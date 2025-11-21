@@ -8,8 +8,8 @@ import { Search, Phone, TrendingUp } from "lucide-react"
 const steps = [
   {
     id: 1,
-    title: "Search for your expert",
-    description: "Filter by background, reviews, or experience that matches your challenge.",
+    title: "Find your advisor or consultant",
+    description: "Browse experienced advisors and consultants who specialize in your area of need.",
     bgColor: "bg-orange-200",
     borderColor: "border-orange-300",
     icon: Search,
@@ -17,8 +17,8 @@ const steps = [
   },
   {
     id: 2,
-    title: "Book a 1:1 discovery call",
-    description: "15-45 minute calls to get unstuck and move forward.",
+    title: "Book 1:1 mentorship session",
+    description: "Schedule personalized 1:1 sessions with your chosen advisor or consultant for direct guidance.",
     bgColor: "bg-pink-200",
     borderColor: "border-pink-300",
     icon: Phone,
@@ -26,8 +26,8 @@ const steps = [
   },
   {
     id: 3,
-    title: "Keep growing with the Advisor Plan",
-    description: "Build a long-term relationship for ongoing support and clarity.",
+    title: "Get ongoing advisory support",
+    description: "Build a lasting relationship with your advisor for continuous mentorship and strategic guidance.",
     bgColor: "bg-green-200",
     borderColor: "border-green-300",
     icon: TrendingUp,
@@ -125,9 +125,9 @@ export function HowItWorksSection() {
             className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold text-black leading-tight"
             style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
           >
-            Clarity starts with
+            Personalized 1:1 mentorship
             <br />
-            real connection.
+            from expert advisors.
           </p>
         </motion.div>
 

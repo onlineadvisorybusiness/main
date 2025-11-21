@@ -75,7 +75,7 @@ export default function ExpertAvailability() {
 
   const loadAvailabilities = async (retryCount = 0) => {
     const MAX_RETRIES = 3
-    const RETRY_DELAY = 1000 // 1 second
+    const RETRY_DELAY = 1000
     
     let timeoutId = null
     const controller = new AbortController()
@@ -83,22 +83,18 @@ export default function ExpertAvailability() {
     try {
       setLoading(true)
 
-      timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+      timeoutId = setTimeout(() => controller.abort(), 30000)
       
       const response = await fetch('/api/availability', {
         signal: controller.signal,
-        cache: 'no-store' // Prevent caching issues
+        cache: 'no-store'
       })
       
       if (timeoutId) clearTimeout(timeoutId)
       
       if (response.ok) {
         const data = await response.json()
-        
-        console.log('🔍 [DEBUG] Full API Response:', JSON.stringify(data, null, 2))
-        console.log('🔍 [DEBUG] Expert timezone from API:', data.expert?.timezone)
-        console.log('🔍 [DEBUG] Availabilities count:', data.availabilities?.length || 0)
-        
+                
         const groupedAvailabilities = {}
         
         data.availabilities?.forEach(availability => {
@@ -108,29 +104,21 @@ export default function ExpertAvailability() {
           groupedAvailabilities[availability.dayOfWeek].push(availability)
         })
         
-        console.log('📊 [DEBUG] Grouped availabilities:', Object.keys(groupedAvailabilities).length, 'days')
         setAvailabilities(groupedAvailabilities)
         
         let timezoneToUse = null
         
         if (data.expert?.timezone && data.expert.timezone !== 'UTC') {
-          // Only use API timezone if it's not the default UTC
           timezoneToUse = data.expert.timezone
-          console.log('✅ Setting expert timezone from API:', timezoneToUse)
         } else {
-          // Try to get timezone from first availability slot if available
           const firstAvailability = data.availabilities?.[0]
           if (firstAvailability?.timezone) {
             timezoneToUse = firstAvailability.timezone
-            console.log('📌 Using timezone from availability slot:', timezoneToUse)
           } else if (data.expert?.timezone) {
-            // Use UTC only if explicitly set
             timezoneToUse = data.expert.timezone
-            console.log('📌 Using timezone from API (UTC):', timezoneToUse)
           }
         }
         
-        // If still no timezone, try to get from sessions
         if (!timezoneToUse) {
           try {
             const sessionsResponse = await fetch('/api/sessions')
@@ -139,36 +127,28 @@ export default function ExpertAvailability() {
               const activeSession = sessionsData.sessions?.find(s => s.status === 'published' || s.status === 'active')
               if (activeSession?.timezone) {
                 timezoneToUse = activeSession.timezone
-                console.log('📌 Using timezone from active session:', timezoneToUse)
               }
             }
           } catch (sessionError) {
-            console.warn('⚠️ Could not fetch sessions for timezone:', sessionError)
           }
         }
         
 
         const normalizeTimezone = (tz) => {
           const mappings = {
-            'Asia/Calcutta': 'Asia/Kolkata' // Both are the same timezone, normalize to Asia/Kolkata
+            'Asia/Calcutta': 'Asia/Kolkata'
           }
           return mappings[tz] || tz
         }
         
         if (timezoneToUse) {
-          // Normalize the timezone before setting it
           const normalizedTimezone = normalizeTimezone(timezoneToUse)
-          console.log('✅ Final timezone to use (before normalization):', timezoneToUse)
-          console.log('✅ Final timezone to use (after normalization):', normalizedTimezone)
-          console.log('🔍 Looking for in timezones array:', timezones.find(tz => tz.value === normalizedTimezone))
           setExpertTimezone(normalizedTimezone)
         } else {
-          console.warn('⚠️ No timezone found, keeping default UTC')
-          setExpertTimezone('UTC') // Explicitly set UTC as fallback
+          setExpertTimezone('UTC')
         }
         setLoading(false)
       } else if (response.status === 401) {
-        // Don't retry on authentication errors
         setLoading(false)
         toast({
           title: "Authentication Required",
@@ -177,7 +157,6 @@ export default function ExpertAvailability() {
         })
         setAvailabilities({})
       } else if (response.status === 403) {
-        // Don't retry on authorization errors
         setLoading(false)
         toast({
           title: "Access Denied",
@@ -186,12 +165,10 @@ export default function ExpertAvailability() {
         })
         setAvailabilities({})
       } else {
-        // If we have retries left, retry for other errors
         if (retryCount < MAX_RETRIES) {
-          console.warn(`⚠️ Failed to fetch availability, retrying... (${retryCount + 1}/${MAX_RETRIES})`)
           setTimeout(() => {
             loadAvailabilities(retryCount + 1)
-          }, RETRY_DELAY * (retryCount + 1)) // Exponential backoff
+          }, RETRY_DELAY * (retryCount + 1))
         } else {
           setAvailabilities({})
           setLoading(false)
@@ -205,13 +182,11 @@ export default function ExpertAvailability() {
       }
     } catch (error) {
       if (timeoutId) clearTimeout(timeoutId)
-      
-      // If we have retries left and it's not an abort error, retry
+
       if (error.name !== 'AbortError' && retryCount < MAX_RETRIES) {
-        console.warn(`⚠️ Error fetching availability, retrying... (${retryCount + 1}/${MAX_RETRIES})`, error)
         setTimeout(() => {
           loadAvailabilities(retryCount + 1)
-        }, RETRY_DELAY * (retryCount + 1)) // Exponential backoff
+        }, RETRY_DELAY * (retryCount + 1))
       } else {
         setAvailabilities({})
         setLoading(false)
@@ -223,7 +198,6 @@ export default function ExpertAvailability() {
             variant: "destructive"
           })
         } else {
-          console.error('❌ Error fetching availability:', error)
           toast({
             title: "Connection Error",
             description: "Unable to connect to the server. Please check your internet connection and try again.",
@@ -438,7 +412,6 @@ export default function ExpertAvailability() {
                 <p className="text-gray-600 mt-1">Select a day to manage your availability</p>
               </div>
               {expertTimezone && (() => {
-                // Normalize timezone for display (e.g., Asia/Calcutta -> Asia/Kolkata)
                 const normalizeTimezone = (tz) => {
                   const mappings = {
                     'Asia/Calcutta': 'Asia/Kolkata'

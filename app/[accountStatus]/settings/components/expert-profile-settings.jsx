@@ -458,7 +458,6 @@ export default function ExpertProfileSettings() {
             {isEditMode ? (
               <Button 
                 onClick={() => {
-                  console.log('🔍 [DEBUG] Edit Profile button clicked')
                   setIsEditMode(true)
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
@@ -473,7 +472,6 @@ export default function ExpertProfileSettings() {
                 </Badge>
                 <Button 
                   onClick={async () => {
-                    console.log('🔍 [DEBUG] Cancel button clicked')
                     setIsEditMode(false)
                     setHasUnsavedChanges(false)
                     await loadProfileData()

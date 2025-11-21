@@ -40,8 +40,8 @@ export function Footer() {
 
   const productLinks = [
     { name: "How it Works", href: "/#how-it-works", onClick: handleHowItWorksClick },
-    { name: "Browse Experts", href: "/marketplace" },
-    { name: "Become an Expert", href: "/become-an-expert" },
+    { name: "Browse Advisors", href: "/marketplace" },
+    { name: "Become an Advisor", href: "/become-an-expert" },
   ]
 
   const companyLinks = [
@@ -67,7 +67,7 @@ export function Footer() {
                 Don't miss the good stuff.
               </h2>
               <p className="text-gray-400 text-xs sm:text-sm md:text-base leading-relaxed max-w-sm -mt-2 sm:-mt-4">
-                We share lessons from the best conversations on Hubble. Quick reads. No spam. Just real insight.
+                Get insights from top advisors and consultants. Learn from the best 1:1 mentorship sessions. Quick reads. No spam.
               </p>
               
               <form onSubmit={handleSubmit} className="relative max-w-md">
@@ -175,7 +175,7 @@ export function Footer() {
               >
               </motion.div>
               <span className="text-gray-400 text-xs sm:text-sm group-hover:text-white transition-colors duration-200">
-                © 2025 My First Cheque
+                © 2025 Advisory Hub
               </span>
             </div>
 

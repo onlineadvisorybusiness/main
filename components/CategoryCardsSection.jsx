@@ -13,80 +13,80 @@ export function CategoryCardsSection() {
   const categories = [
     {
       id: 1,
-      name: "Mental Health",
-      icon: Heart,
-      bgGradient: "from-pink-50 via-rose-50 to-pink-100",
-      hoverColor: "from-pink-300 to-pink-200"
+      name: "Business Advisor",
+      icon: Briefcase,
+      bgGradient: "from-emerald-50 via-green-50 to-emerald-100",
+      hoverColor: "from-emerald-300 to-emerald-200"
     },
     {
       id: 2,
-      name: "Hiring & Team Building",
-      icon: Users,
+      name: "Strategy Consultant",
+      icon: Target,
       bgGradient: "from-blue-50 via-cyan-50 to-blue-100",
       hoverColor: "from-blue-300 to-blue-200"
     },
     {
       id: 3,
-      name: "Business & Money",
+      name: "Financial Advisor",
       icon: DollarSign,
-      bgGradient: "from-emerald-50 via-green-50 to-emerald-100",
-      hoverColor: "from-emerald-300 to-emerald-200"
-    },
-    {
-      id: 4,
-      name: "Fundraising 101",
-      icon: HandCoins,
       bgGradient: "from-amber-50 via-yellow-50 to-amber-100",
       hoverColor: "from-amber-300 to-amber-200"
     },
     {
-      id: 5,
-      name: "Scaling the Business",
-      icon: TrendingUp,
+      id: 4,
+      name: "Startup Mentor",
+      icon: HandCoins,
       bgGradient: "from-violet-50 via-purple-50 to-violet-100",
       hoverColor: "from-violet-300 to-violet-200"
     },
     {
-      id: 6,
-      name: "Sales & Growth",
-      icon: Handshake,
+      id: 5,
+      name: "Growth Consultant",
+      icon: TrendingUp,
       bgGradient: "from-cyan-50 via-sky-50 to-cyan-100",
       hoverColor: "from-cyan-300 to-cyan-200"
     },
     {
-      id: 7,
-      name: "Product Strategy",
-      icon: TrendingUp,
+      id: 6,
+      name: "Sales Advisor",
+      icon: Handshake,
       bgGradient: "from-indigo-50 via-blue-50 to-indigo-100",
       hoverColor: "from-indigo-300 to-indigo-200"
     },
     {
-      id: 8,
-      name: "Marketing",
-      icon: Heart,
+      id: 7,
+      name: "Product Consultant",
+      icon: TrendingUp,
       bgGradient: "from-rose-50 via-pink-50 to-rose-100",
       hoverColor: "from-rose-300 to-rose-200"
     },
     {
-      id: 9,
-      name: "Business Strategy",
-      icon: TrendingUp,
-      bgGradient: "from-indigo-50 via-blue-50 to-indigo-100",
-      hoverColor: "from-indigo-300 to-indigo-200"
+      id: 8,
+      name: "Marketing Advisor",
+      icon: Heart,
+      bgGradient: "from-pink-50 via-rose-50 to-pink-100",
+      hoverColor: "from-pink-300 to-pink-200"
     },
     {
-      id: 10,
-      name: "Business Strategy",
+      id: 9,
+      name: "Tech Consultant",
       icon: Briefcase,
       bgGradient: "from-cyan-50 via-sky-50 to-cyan-100",
       hoverColor: "from-cyan-300 to-cyan-200"
     },
     {
-      id: 11,
-      name: "Career Development",
-      icon: Target,
+      id: 10,
+      name: "Leadership Mentor",
+      icon: Users,
       bgGradient: "from-indigo-50 via-blue-50 to-indigo-100",
       hoverColor: "from-indigo-300 to-indigo-200"
+    },
+    {
+      id: 11,
+      name: "1:1 Mentorship",
+      icon: Target,
+      bgGradient: "from-green-50 via-emerald-50 to-green-100",
+      hoverColor: "from-green-300 to-green-200"
     }
   ]
 
@@ -141,7 +141,7 @@ export function CategoryCardsSection() {
               className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-2 leading-[1.1]"
               style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
             >
-              Not sure <span className="bg-amber-700 text-transparent bg-clip-text">where</span> to start?
+              Find your <span className="bg-amber-700 text-transparent bg-clip-text">advisor</span> by expertise.
             </motion.h2>
             <motion.p
               initial={{ opacity: 0, y: 20 }}   
@@ -151,7 +151,7 @@ export function CategoryCardsSection() {
               className="text-sm sm:text-base text-gray-600 leading-relaxed max-w-lg"
               style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
             >
-              Explore real challenges others are solving.
+              Browse consultants and advisors across different specialties for personalized 1:1 mentorship.
             </motion.p>
           </div>
           <motion.div
@@ -166,7 +166,7 @@ export function CategoryCardsSection() {
               className="inline-flex items-center gap-2 text-black hover:text-black/80 transition-colors duration-200 group"
               style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
             >
-              <span className="text-base sm:text-lg">View all experts</span>
+              <span className="text-base sm:text-lg">View all advisors</span>
               <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform duration-200" />
             </Link>
           </motion.div>

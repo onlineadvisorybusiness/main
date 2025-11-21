@@ -14,15 +14,14 @@ export function ReadySection() {
       video.muted = true
       video.loop = true
       video.playsInline = true
-      
-      const tryPlay = () => {
-        const playPromise = video.play()
-        if (playPromise !== undefined) {
+        
+        const tryPlay = () => {
+          const playPromise = video.play()
+          if (playPromise !== undefined) {
           playPromise
             .then(() => {
             })
-            .catch((error) => {
-              console.error("Video play failed:", error)
+            .catch((error) => {   
             })
         }
       }
@@ -57,7 +56,6 @@ export function ReadySection() {
                   const video = videoRef.current
                   if (video) {
                     video.play().catch((error) => {
-                      console.error("Video play failed:", error)
                     })
                   }
                 }}
@@ -65,7 +63,6 @@ export function ReadySection() {
                   const video = videoRef.current
                   if (video) {
                     video.play().catch((error) => {
-                      console.error("Video play failed:", error)
                     })
                   }
                 }}
@@ -95,14 +92,14 @@ export function ReadySection() {
                     className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold leading-[1.1] tracking-tight text-white"
                     style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
                   >
-                    Ready when you are.
+                    Find your advisor today.
                   </h2>
                   
                   <p
                     className="text-xs sm:text-sm md:text-base lg:text-lg text-white/90 leading-relaxed max-w-lg"
                     style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
                   >
-                    Search real experts who've solved what you're facing, and get honest advice that actually helps.
+                    Connect with experienced advisors and consultants for personalized 1:1 mentorship that drives real results.
                   </p>
 
                   <motion.button
@@ -117,7 +114,7 @@ export function ReadySection() {
                     <Rocket 
                       className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black" 
                     />
-                    Find your expert
+                    Browse advisors & consultants
                   </motion.button>
                 </motion.div>
               </div>

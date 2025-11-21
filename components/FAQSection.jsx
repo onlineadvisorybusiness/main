@@ -7,28 +7,28 @@ import { Plus, Minus, X } from "lucide-react"
 const faqs = [
   {
     id: 1,
-    question: "What kind of experts are on Hubble?",
-    answer: "We have a diverse range of experts including startup founders, investors, product managers, marketing leaders, and technical advisors. All our experts have real-world experience building and scaling businesses."
+    question: "What types of advisors and consultants are available?",
+    answer: "We have experienced business advisors, strategic consultants, financial advisors, startup mentors, growth consultants, and specialists across various industries. All provide personalized 1:1 mentorship sessions tailored to your specific needs."
   },
   {
     id: 2,
-    question: "How do I know if someone is right for me?",
-    answer: "Each expert profile includes their background, experience, and areas of expertise. You can also read reviews from previous clients and book a discovery call to see if they're the right fit for your needs."
+    question: "How does 1:1 mentorship work?",
+    answer: "Each advisor and consultant offers personalized 1:1 mentorship sessions. You can review their profiles, see their expertise areas, read client reviews, and book sessions directly. Each session is tailored to address your specific challenges and goals."
   },
   {
     id: 3,
-    question: "Is this like coaching?",
-    answer: "Not exactly. Our experts provide targeted, actionable advice based on their specific experience. It's more like consulting with someone who's been in your shoes and can give you practical guidance."
+    question: "What's the difference between an advisor and a consultant?",
+    answer: "Advisors typically provide ongoing strategic guidance and mentorship, while consultants offer specialized expertise for specific projects or challenges. Both provide 1:1 sessions, but advisors often work in longer-term relationships, while consultants focus on targeted solutions."
   },
   {
     id: 4,
-    question: "Do I need a subscription?",
-    answer: "No subscription required. You pay per session, giving you the flexibility to book sessions as needed without any ongoing commitments."
+    question: "Do I need a subscription for mentorship sessions?",
+    answer: "No subscription required. You pay per 1:1 mentorship session, giving you flexibility to work with different advisors and consultants as your needs evolve. Some advisors also offer ongoing advisory plans for continuous support."
   },
   {
     id: 5,
-    question: "Can I cancel or reschedule my booking?",
-    answer: "Yes, you can cancel or reschedule your booking up to 24 hours before your scheduled session. Cancellations within 24 hours may be subject to our cancellation policy."
+    question: "Can I work with multiple advisors or consultants?",
+    answer: "Absolutely! Many clients work with different advisors and consultants for different areas—for example, a business strategy advisor, a financial consultant, and a marketing advisor. Each 1:1 mentorship session is independent."
   }
 ]
 

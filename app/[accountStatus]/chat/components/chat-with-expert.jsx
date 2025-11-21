@@ -210,12 +210,10 @@ export default function ChatWithExpert() {
           })
         }
       } catch (error) {
-        console.error('Retry failed:', error)
       }
     }
   }, [failedMessages, selectedExpert?.conversationId, currentUser])
   
-  // Network status detection
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true)
@@ -1177,7 +1175,6 @@ export default function ChatWithExpert() {
           description: errorMessage,
           avatar: null
         })
-        console.error('Error sending message:', error)
       } finally {
         isSendingRef.current = false
       }

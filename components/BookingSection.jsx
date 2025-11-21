@@ -189,28 +189,10 @@ export function BookingSection({ expert, sessions = [] }) {
     const dayAvailability = expertAvailability[dayOfWeek] || []
     const dayBookings = existingBookings[selectedDateStr] || []
 
-    // ========== DEBUG LOGGING ==========
-    console.group('🔍 [DEBUG] generateAvailableSlots called')
-    console.log('Date:', selectedDateStr)
-    console.log('Day of Week:', dayOfWeek)
-    console.log('expertTimezone state:', expertTimezone)
-    console.log('currentSession?.timezone:', currentSession?.timezone)
-    console.log('expert?.timezone:', expert?.timezone)
-    // ===================================
-    
     const expertTz = currentSession?.timezone || expertTimezone || expert?.timezone || 'UTC'
     const learnerTz = timezone || 'Asia/Kolkata'
     
-    // ========== DEBUG LOGGING ==========
-    console.log('Final expertTz:', expertTz)
-    console.log('Learner Timezone:', learnerTz)
-    console.log('Expert Availability (RAW):', dayAvailability.map(av => `${av.startTime} - ${av.endTime}`).join(', '))
-    console.log('Existing Bookings:', dayBookings.map(b => `${b.startTime} - ${b.endTime}`).join(', ') || 'None')
-    console.groupEnd()
-    // ===================================
-        
     if (dayAvailability.length === 0) {
-      console.log('⚠️ [DEBUG] No availability for day', dayOfWeek)
       setAvailableSlots([])
       return
     }
@@ -219,18 +201,9 @@ export function BookingSection({ expert, sessions = [] }) {
     const duration = parseInt(selectedDuration)
 
     dayAvailability.forEach((availability, idx) => {
-      // Get times in expert's timezone
       const expertStartTime = availability.startTime
       const expertEndTime = availability.endTime
       
-      // ========== DEBUG LOGGING ==========
-      console.group(`🔍 [DEBUG] Processing availability ${idx + 1}`)
-      console.log('Expert Time (in ' + expertTz + '):', expertStartTime, '-', expertEndTime)
-      console.log('Learner Timezone:', learnerTz)
-      // ===================================
-      
-      // Convert to learner's timezone if different
-      // Always pass the date to ensure accurate DST handling
       const learnerStartTime = expertTz !== learnerTz 
         ? convertTime(expertStartTime, expertTz, learnerTz, dateToUse)
         : expertStartTime
@@ -238,32 +211,18 @@ export function BookingSection({ expert, sessions = [] }) {
         ? convertTime(expertEndTime, expertTz, learnerTz, dateToUse)
         : expertEndTime
       
-      // ========== DEBUG LOGGING ==========
-      console.log('BEFORE CONVERSION - Expert:', expertStartTime, '-', expertEndTime, '(in', expertTz + ')')
-      console.log('AFTER CONVERSION - Learner:', learnerStartTime, '-', learnerEndTime, '(in', learnerTz + ')')
-      console.log('Conversion Applied:', expertTz !== learnerTz ? 'YES' : 'NO (same timezone)')
-      // ===================================
-      
       const startTime = parseTime(learnerStartTime)
       const endTime = parseTime(learnerEndTime)
-      
-      // ========== DEBUG LOGGING ==========
-      console.log('Parsed to minutes - Start:', startTime, 'End:', endTime, 'Duration:', duration)
-      console.groupEnd()
-      // ===================================
       
       let currentTime = startTime
       let slotCount = 0
       while (currentTime <= endTime) {
         const canFit = currentTime + duration <= endTime
         if (canFit) {
-          // Check bookings in expert's timezone
           const isBooked = dayBookings.some(booking => {
             const bookingStart = parseTime(booking.startTime)
             const bookingEnd = parseTime(booking.endTime)
             
-            // Convert booking times to learner timezone for comparison
-            // Always pass the date to ensure accurate DST handling
             const bookingStartLearner = expertTz !== learnerTz
               ? parseTime(convertTime(formatTimeForAPI(bookingStart), expertTz, learnerTz, dateToUse))
               : bookingStart
@@ -279,7 +238,6 @@ export function BookingSection({ expert, sessions = [] }) {
           })
 
           if (!isBooked) {
-            // Convert back to get expert time for storage
             const expertTimeMinutes = expertTz !== learnerTz
               ? parseTime(convertTime(formatTimeForAPI(currentTime), learnerTz, expertTz, dateToUse))
               : currentTime
@@ -289,59 +247,28 @@ export function BookingSection({ expert, sessions = [] }) {
               startTime: currentTime,
               endTime: currentTime + duration,
               duration: duration,
-              expertStartTime: expertTimeMinutes, // Store original expert time for booking
+              expertStartTime: expertTimeMinutes,
               expertEndTime: expertTimeMinutes + duration
             }
             
             slots.push(slot)
             slotCount++
             
-            // ========== DEBUG LOGGING ==========
-            if (slotCount <= 5) { // Log first 5 slots
-              console.log(`✅ Slot ${slotCount}:`, {
-                'Display (Learner)': slot.start,
-                'Learner Minutes': currentTime,
-                'Expert Minutes': expertTimeMinutes,
-                'Expert Time': formatTimeForAPI(expertTimeMinutes) + ' (in ' + expertTz + ')'
-              })
-            }
-            // ===================================
           }
         }
         currentTime += duration 
       }
     })
 
-    // Sort slots by time
     slots.sort((a, b) => a.startTime - b.startTime)
     
-    // ========== DEBUG LOGGING ==========
-    console.group('📊 [DEBUG] Final Slots Summary')
-    console.log('Total Slots Generated:', slots.length)
-    console.log('Expert Timezone:', expertTz)
-    console.log('Learner Timezone:', learnerTz)
-    if (slots.length > 0) {
-      console.table(slots.slice(0, 10).map(s => ({
-        'Display Time (Learner)': s.start,
-        'Learner Minutes': s.startTime,
-        'Expert Minutes': s.expertStartTime,
-        'Expert Time': formatTimeForAPI(s.expertStartTime)
-      })))
-    } else {
-      console.warn('⚠️ No slots generated!')
-    }
-    console.groupEnd()
-    // ===================================
-    
     setAvailableSlots(slots)
-    // Reset selected slot if date changed or if slots were regenerated
     if (dateToUse !== selectedDate) {
       setSelectedTimeSlot(null)
     }
   }, [selectedDate, selectedDuration, expertAvailability, existingBookings, availableDatesList, expertTimezone, timezone, currentSession, expert])
 
   useEffect(() => {
-    // Generate slots when selectedDate changes, timezone changes, or when availability data is loaded
     if (selectedDate && Object.keys(expertAvailability).length > 0) {
       generateAvailableSlots(selectedDate)
     } else if (!selectedDate && availableDatesList.length > 0 && Object.keys(expertAvailability).length > 0) {
@@ -350,30 +277,15 @@ export function BookingSection({ expert, sessions = [] }) {
     }
   }, [selectedDate, generateAvailableSlots, expertAvailability, availableDatesList, timezone, expertTimezone])
   
-  // Reset selected slot when timezone changes
   useEffect(() => {
     if (timezone) {
       const dateStr = selectedDate ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}` : 'None'
-      console.group('🕐 [DEBUG] Timezone Changed')
-      console.log('New Learner Timezone:', timezone)
-      console.log('Expert Timezone:', expertTimezone)
-      console.log('Selected Date:', dateStr)
-      console.log('Available Slots Before Reset:', availableSlots.length)
-      console.groupEnd()
       setSelectedTimeSlot(null)
     }
   }, [timezone])
   
-  // Log initial state
   useEffect(() => {
     const dateStr = selectedDate ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}` : 'None'
-    console.group('🚀 [DEBUG] BookingSection Initialized')
-    console.log('Expert Timezone:', expertTimezone || 'UTC')
-    console.log('Learner Timezone:', timezone || 'UTC')
-    console.log('Selected Date:', dateStr)
-    console.log('Expert Availability:', Object.keys(expertAvailability).length > 0 ? 'Loaded' : 'Not loaded')
-    console.log('Existing Bookings:', Object.keys(existingBookings).length)
-    console.groupEnd()
   }, [])
 
 
@@ -385,8 +297,6 @@ export function BookingSection({ expert, sessions = [] }) {
         const data = await response.json()
         setExpertAvailability(data.availabilities || {})
         setExistingBookings(data.existingBookings || {})
-        // Set expert timezone from API response, session, or expert prop (priority order)
-        // API response has highest priority, then session, then expert prop
         if (data.expert?.timezone) {
           setExpertTimezone(data.expert.timezone)
         } else if (currentSession?.timezone) {
@@ -419,7 +329,6 @@ export function BookingSection({ expert, sessions = [] }) {
       const day = String(selectedDate.getDate()).padStart(2, '0')
       const localDate = `${year}-${month}-${day}`
       
-      // Convert selected time back to expert timezone for storage
       const expertStartTime = selectedTimeSlot.expertStartTime !== undefined
         ? formatTimeForAPI(selectedTimeSlot.expertStartTime)
         : formatTimeForAPI(selectedTimeSlot.startTime)
@@ -430,8 +339,8 @@ export function BookingSection({ expert, sessions = [] }) {
       const bookingData = {
         sessionId: currentSession.id,
         date: localDate,
-        startTime: expertStartTime, // Store in expert's timezone
-        endTime: expertEndTime, // Store in expert's timezone
+        startTime: expertStartTime,
+        endTime: expertEndTime,
         duration: parseInt(selectedDuration),
         expertUsername: expert.username,
         learnerTimezone: timezone || 'UTC',
@@ -452,10 +361,8 @@ export function BookingSection({ expert, sessions = [] }) {
           description: `Your session has been scheduled and added to your calendar. Meeting Link: ${result.booking.meetingLink}`,
           duration: 5000,
         })
-        // Reset the form and refresh availability
         setSelectedTimeSlot(null)
         setSelectedDate(null)
-        // Refresh availability to update existing bookings
         fetchExpertAvailability()
       } else {
         const error = await response.json()
@@ -474,7 +381,6 @@ export function BookingSection({ expert, sessions = [] }) {
 
   const similarExperts = []
 
-  // If no sessions available, show fallback
   if (sessions.length === 0) {
     return (
       <Card className="mt-16 bg-gray-50 border border-gray-200 relative overflow-hidden">
@@ -504,7 +410,6 @@ export function BookingSection({ expert, sessions = [] }) {
               style={{ objectPosition: 'center top' }}
             />
 
-            {/* Top Advisor Badge - Top Left */}
             {expert.isTopAdvisor && (
               <div className="absolute top-4 left-4 z-20">
                 <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 shadow-lg transition-colors duration-200 flex items-center gap-1.5 px-3 py-1.5">
@@ -562,7 +467,6 @@ export function BookingSection({ expert, sessions = [] }) {
                 }
               }
               
-              // Don't display rating section if no reviews or rating is 0
               if (totalReviews === 0 || averageRating === 0) {
                 return null
               }
@@ -670,7 +574,6 @@ export function BookingSection({ expert, sessions = [] }) {
                           key={duration}
                           variant={selectedDuration === duration ? "default" : "outline"}
                           onClick={() => {
-                            // Clear date and time slot when duration changes since slots are duration-specific
                             if (selectedDuration !== duration) {
                               setSelectedDate(null)
                               setSelectedTimeSlot(null)
@@ -698,7 +601,6 @@ export function BookingSection({ expert, sessions = [] }) {
                 selectedDate={selectedDate}
                 onSelectDate={(date) => {
                   setSelectedDate(date)
-                  // Slots will be regenerated by the generateAvailableSlots effect
                 }}
                 selectedTimeSlot={selectedTimeSlot}
                 onSelectTimeSlot={setSelectedTimeSlot}
@@ -711,13 +613,8 @@ export function BookingSection({ expert, sessions = [] }) {
                 timezone={timezone}
                 onTimezoneChange={(value) => {
                   const dateStr = selectedDate ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}` : 'None'
-                  console.group('🔄 [DEBUG] Timezone Selector Changed')
-                  console.log('FROM:', timezone, '→ TO:', value)
-                  console.log('Expert Timezone:', expertTimezone)
-                  console.log('Selected Date:', dateStr)
-                  console.groupEnd()
                   setTimezone(value)
-                  setSelectedTimeSlot(null) // Reset selected slot when timezone changes
+                  setSelectedTimeSlot(null)
                 }}
               />
               

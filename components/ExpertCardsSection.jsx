@@ -39,63 +39,63 @@ export function ExpertCardsSection() {
   const experts = [
     {
       id: 1,
-      name: "Katie Dunn",
-      username: "katie-dunn",
+      name: "Marcus Thompson",
+      username: "marcus-thompson",
+      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face",
+      rating: 4.9,
+      topAdvisor: true,
+      verified: true,
+      description: "Financial Advisor at WealthBridge Capital | 15+ Years in Investment Strategy | Specializes in Startup Funding"
+    },
+    {
+      id: 2,
+      name: "Priya Sharma",
+      username: "priya-sharma",
       avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop&crop=face",
       rating: 5.0,
       topAdvisor: true,
       verified: true,
-      description: "Angel Investor In 25+ Startups across CPG, Tech, Web3, and AI"
-    },
-    {
-      id: 2,
-      name: "Ben Lang",
-      username: "ben-lang",
-      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face",
-      rating: 5.0,
-      topAdvisor: true,
-      verified: true,
-      description: "Head of Community at Cursor | Angel Investor"
+      description: "Operations Consultant | Former COO at TechFlow | Expert in Scaling Teams from 10 to 500+"
     },
     {
       id: 3,
-      name: "Justin Gerrard",
-      username: "justin-gerrard",
+      name: "James Rodriguez",
+      username: "james-rodriguez",
       avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face",
-      rating: 5.0,
+      rating: 4.8,
       topAdvisor: true,
       verified: true,
-      description: "3X Startup Exits | Alum: Discord, Twitch, Meta"
+      description: "Sales Strategy Advisor | Built $50M+ Revenue Teams | B2B SaaS Growth Specialist"
     },
     {
       id: 4,
-      name: "Terri Yo",
-      username: "terri-yo",
+      name: "Emily Watson",
+      username: "emily-watson",
       avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&h=400&fit=crop&crop=face",
       rating: 5.0,
       topAdvisor: true,
       verified: true,
-      description: "Marketing Leader | Growth Expert"
+      description: "Brand Strategy Consultant | Creative Director at BrandForge | Helped 200+ Companies Rebrand"
     },
     {
       id: 5,
-      name: "Sarah Chen",
-      username: "sarah-chen",
+      name: "Robert Kim",
+      username: "robert-kim",
+      avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop&crop=face",
+      rating: 4.9,
+      topAdvisor: true,
+      verified: true,
+      description: "Technology Advisor | CTO at CloudScale Ventures | AI & Machine Learning Expert"
+    },
+    {
+      id: 6,
+      name: "Sophie Laurent",
+      username: "sophie-laurent",
       avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop&crop=face",
       rating: 5.0,
       topAdvisor: true,
       verified: true,
-      description: "Product Strategy | Former PM at Google"
-    },
-    {
-      id: 6,
-      name: "David Park",
-      username: "david-park",
-      avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop&crop=face",
-      rating: 5.0,
-      topAdvisor: true,
-      verified: true,
-      description: "Engineering Leader | Tech Advisor"
+      description: "International Business Consultant | Former VP at GlobalCorp | Cross-Cultural Strategy Expert"
     }
   ]
 
@@ -125,7 +125,7 @@ export function ExpertCardsSection() {
                 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-2 leading-[1.1]"
                 style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
               >
-                Experts who've <span className="bg-amber-700 text-transparent bg-clip-text">shared their experience.</span> 
+                Top advisors & <span className="bg-amber-700 text-transparent bg-clip-text">consultants ready to mentor.</span> 
               </h2>
             </SmoothReveal>
             <SmoothReveal delay={0.2} duration={0.6}>
@@ -133,7 +133,7 @@ export function ExpertCardsSection() {
                 className="text-base md:text-base text-gray-600 leading-relaxed max-w-lg"
                 style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
               >
-                They've built, scaled, failed, pivoted, and launched again. Now they're here to help you do the same—with clear, honest advice from lived experience.
+                Work 1:1 with experienced advisors and consultants who've navigated the challenges you're facing. Get personalized mentorship that drives real results.
               </p>
             </SmoothReveal>
           </div>
@@ -144,7 +144,7 @@ export function ExpertCardsSection() {
                 className="inline-flex items-center gap-2 text-black hover:text-black/80 transition-colors duration-200 group"
                 style={{ fontFamily: "'Libre Caslon Condensed', 'Playfair Display', serif" }}
               >
-                <span className="text-lg ">Find your expert</span>
+                <span className="text-lg ">Find your advisor</span>
                 <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" />
               </Link>
             </div>

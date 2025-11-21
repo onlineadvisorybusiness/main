@@ -216,7 +216,7 @@ export default function ExpertsSessions({ user }) {
 
   const fetchSessions = async (retryCount = 0) => {
     const MAX_RETRIES = 3
-    const RETRY_DELAY = 1000 // 1 second
+    const RETRY_DELAY = 1000
     
     let timeoutId = null
     const controller = new AbortController()
@@ -224,11 +224,11 @@ export default function ExpertsSessions({ user }) {
     try {
       setIsLoadingSessions(true)
       
-      timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+      timeoutId = setTimeout(() => controller.abort(), 30000)
       
       const response = await fetch('/api/sessions', {
         signal: controller.signal,
-        cache: 'no-store' // Prevent caching issues
+        cache: 'no-store'
       })
       
       if (timeoutId) clearTimeout(timeoutId)
@@ -239,12 +239,10 @@ export default function ExpertsSessions({ user }) {
         setSessions(result.sessions || [])
         setIsLoadingSessions(false)
       } else {
-        // If we have retries left, retry
         if (retryCount < MAX_RETRIES) {
-          console.warn(`⚠️ Failed to fetch sessions, retrying... (${retryCount + 1}/${MAX_RETRIES})`)
           setTimeout(() => {
             fetchSessions(retryCount + 1)
-          }, RETRY_DELAY * (retryCount + 1)) // Exponential backoff
+          }, RETRY_DELAY * (retryCount + 1))
         } else {
           setSessions([])
           setIsLoadingSessions(false)
@@ -258,12 +256,10 @@ export default function ExpertsSessions({ user }) {
     } catch (error) {
       if (timeoutId) clearTimeout(timeoutId)
       
-      // If we have retries left and it's not an abort error, retry
       if (error.name !== 'AbortError' && retryCount < MAX_RETRIES) {
-        console.warn(`⚠️ Error fetching sessions, retrying... (${retryCount + 1}/${MAX_RETRIES})`, error)
         setTimeout(() => {
           fetchSessions(retryCount + 1)
-        }, RETRY_DELAY * (retryCount + 1)) // Exponential backoff
+        }, RETRY_DELAY * (retryCount + 1))
       } else {
         setSessions([])
         setIsLoadingSessions(false)
@@ -275,7 +271,6 @@ export default function ExpertsSessions({ user }) {
             variant: "destructive"
           })
         } else {
-          console.error('❌ Error fetching sessions:', error)
           toast({
             title: "Connection Error",
             description: "Unable to connect to the server. Please check your internet connection and try again.",
@@ -302,7 +297,6 @@ export default function ExpertsSessions({ user }) {
       return false
       }
 
-      // Validate minimum price of $20
       const pricesBelowMinimum = Object.entries(formData.prices).some(([duration, price]) => {
         if (!price || price.trim() === '') return false
         const numPrice = parseFloat(price)
@@ -322,7 +316,6 @@ export default function ExpertsSessions({ user }) {
 
   const handleCreateSession = async () => {
     if (!isFormValid()) {
-      // Check for specific validation errors
       const pricesBelowMinimum = Object.entries(formData.prices).some(([duration, price]) => {
         if (!price || price.trim() === '') return false
         const numPrice = parseFloat(price)
@@ -429,7 +422,6 @@ export default function ExpertsSessions({ user }) {
 
       const result = await response.json()
 
-      // Update the session in the sessions state
       setSessions(prevSessions => 
         prevSessions.map(session => 
           session.id === sessionId 
@@ -471,7 +463,6 @@ export default function ExpertsSessions({ user }) {
 
       const result = await response.json()
 
-      // Update the session in the sessions state
       setSessions(prevSessions => 
         prevSessions.map(session => 
           session.id === sessionId 
@@ -513,7 +504,6 @@ export default function ExpertsSessions({ user }) {
 
   const handleUpdateSession = async () => {
     if (!isFormValid()) {
-      // Check for specific validation errors
       const pricesBelowMinimum = Object.entries(formData.prices).some(([duration, price]) => {
         if (!price || price.trim() === '') return false
         const numPrice = parseFloat(price)

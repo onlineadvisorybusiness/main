@@ -35,9 +35,6 @@ export async function GET() {
       ]
     })
 
-    // Log for debugging
-    console.log('🔍 [DEBUG] API GET - User timezone:', user.timezone)
-
     return NextResponse.json({ 
       success: true, 
       availabilities,
